@@ -52,6 +52,120 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "action.about": {ZH_CN: "关于 SakuGIS", EN: "About SakuGIS"},
     "dock.layers": {ZH_CN: "图层", EN: "Layers"},
     "dock.agents": {ZH_CN: "Geo Agents", EN: "Geo Agents"},
+    "dock.place_details": {ZH_CN: "地点详情", EN: "Place Details"},
+    "action.place_details": {
+        ZH_CN: "显示地点详情",
+        EN: "Show Place Details",
+    },
+    "place.eyebrow": {
+        ZH_CN: "PLACE EXPLORER",
+        EN: "PLACE EXPLORER",
+    },
+    "place.empty_title": {ZH_CN: "尚未选择地点", EN: "No place selected"},
+    "place.empty_hint": {
+        ZH_CN: "单击候选列表、候选图层或地图上的候选点，查看地点介绍与网络照片。",
+        EN: "Select a candidate, candidate layer, or map marker to view its description and web photos.",
+    },
+    "place.unnamed": {ZH_CN: "未命名地点", EN: "Unnamed place"},
+    "place.overview": {ZH_CN: "概览", EN: "Overview"},
+    "place.photos": {ZH_CN: "网络照片", EN: "Web Photos"},
+    "place.sources": {ZH_CN: "来源", EN: "Sources"},
+    "place.waiting": {ZH_CN: "等待选择候选地点", EN: "Waiting for a candidate"},
+    "place.loading": {
+        ZH_CN: "正在检索地点介绍与照片…",
+        EN: "Searching for place information and photos…",
+    },
+    "place.ready": {
+        ZH_CN: "已找到 {web} 条介绍、{photos} 张照片",
+        EN: "Found {web} descriptions and {photos} photos",
+    },
+    "place.partial": {
+        ZH_CN: "已显示部分结果 · {detail}",
+        EN: "Showing partial results · {detail}",
+    },
+    "place.local_only": {
+        ZH_CN: "测试模式：仅显示本地 GIS 信息",
+        EN: "Test mode: showing local GIS information only",
+    },
+    "place.refresh": {ZH_CN: "重新检索", EN: "Refresh Search"},
+    "place.composite_chip": {
+        ZH_CN: "综合 {score}",
+        EN: "Composite {score}",
+    },
+    "place.gis_chip": {
+        ZH_CN: "GIS {score}",
+        EN: "GIS {score}",
+    },
+    "place.reverse": {ZH_CN: "地点反查：", EN: "Reverse lookup:"},
+    "place.rationale": {ZH_CN: "推理说明：", EN: "Reasoning:"},
+    "place.coordinate": {ZH_CN: "坐标：", EN: "Coordinate:"},
+    "place.radius": {ZH_CN: "范围：", EN: "Range:"},
+    "place.coverage": {ZH_CN: "GIS 覆盖率：", EN: "GIS coverage:"},
+    "place.web_intro": {
+        ZH_CN: "网上找到的地点介绍",
+        EN: "Place information found online",
+    },
+    "place.source_note": {
+        ZH_CN: "网络内容与照片由 Brave Search 检索，仅作位置核验参考；点击标题或照片可访问原始网页，版权归原始来源所有。",
+        EN: "Web text and photos are found via Brave Search for location-verification reference only. Open a title or photo to visit its source; rights remain with the original publisher.",
+    },
+    "place.no_web": {
+        ZH_CN: "没有找到可靠的网页介绍。",
+        EN: "No reliable web descriptions were found.",
+    },
+    "place.no_images": {
+        ZH_CN: "没有找到可展示的相关照片。",
+        EN: "No displayable related photos were found.",
+    },
+    "place.key_missing": {
+        ZH_CN: "未配置 Brave Search Key；当前仅显示本地 GIS 信息。",
+        EN: "Brave Search Key is not configured; showing local GIS information only.",
+    },
+    "place.open_source": {
+        ZH_CN: "打开原始网页",
+        EN: "Open source page",
+    },
+    "place.source_title": {ZH_CN: "标题", EN: "Title"},
+    "place.source_site": {ZH_CN: "网站", EN: "Site"},
+    "place.source_type": {ZH_CN: "类型", EN: "Type"},
+    "place.type_web": {ZH_CN: "网页", EN: "Web"},
+    "place.type_image": {ZH_CN: "图片来源", EN: "Image source"},
+    "place.error.unauthorized": {
+        ZH_CN: "Brave Search Key 无效或无权访问。",
+        EN: "The Brave Search Key is invalid or unauthorized.",
+    },
+    "place.error.rate_limit": {
+        ZH_CN: "Brave Search 调用已达限额，请稍后重试。",
+        EN: "The Brave Search rate limit was reached. Try again later.",
+    },
+    "place.error.request": {
+        ZH_CN: "检索参数未被服务接受。",
+        EN: "The search service rejected the request parameters.",
+    },
+    "place.error.service": {
+        ZH_CN: "Brave Search 服务暂时不可用。",
+        EN: "Brave Search is temporarily unavailable.",
+    },
+    "place.error.network": {
+        ZH_CN: "网络连接失败，当前保留本地 GIS 信息。",
+        EN: "Network connection failed; local GIS information remains available.",
+    },
+    "place.error.response": {
+        ZH_CN: "检索服务返回了无法读取的数据。",
+        EN: "The search service returned an unreadable response.",
+    },
+    "place.error.image_url": {
+        ZH_CN: "图片代理地址不安全。",
+        EN: "The image proxy URL was not accepted.",
+    },
+    "place.error.image_format": {
+        ZH_CN: "图片格式不受支持。",
+        EN: "The image format is unsupported.",
+    },
+    "place.error.image_size": {
+        ZH_CN: "图片过大或内容为空。",
+        EN: "The image was too large or empty.",
+    },
     "toolbar.main": {ZH_CN: "主工具栏", EN: "Main Toolbar"},
     "status.ready": {ZH_CN: "就绪", EN: "Ready"},
     "status.rendering": {ZH_CN: "正在绘制…", EN: "Rendering…"},
@@ -156,8 +270,8 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     },
     "about.title": {ZH_CN: "关于 SakuGIS", EN: "About SakuGIS"},
     "about.body": {
-        ZH_CN: "<h3>SakuGIS 0.2.2</h3><p>一款基于 QGIS 的轻量 macOS 桌面 GIS。</p><p>开发团队：<a href=\"https://urbancomp.net\">UrbanComp</a>。</p><p>许可证：GNU GPL v2 或更高版本。</p>",
-        EN: "<h3>SakuGIS 0.2.2</h3><p>A lightweight macOS desktop GIS powered by QGIS.</p><p>Developed by the <a href=\"https://urbancomp.net\">UrbanComp team</a>.</p><p>License: GNU GPL v2 or later.</p>",
+        ZH_CN: "<h3>SakuGIS 0.3.0</h3><p>一款基于 QGIS 的轻量 macOS 桌面 GIS。</p><p>开发团队：<a href=\"https://urbancomp.net\">UrbanComp</a>。</p><p>许可证：GNU GPL v2 或更高版本。</p>",
+        EN: "<h3>SakuGIS 0.3.0</h3><p>A lightweight macOS desktop GIS powered by QGIS.</p><p>Developed by the <a href=\"https://urbancomp.net\">UrbanComp team</a>.</p><p>License: GNU GPL v2 or later.</p>",
     },
     "layer.opacity": {ZH_CN: "透明度 {value}%", EN: "Opacity {value}%"},
     "layer.eyebrow": {ZH_CN: "MAP CONTENTS", EN: "MAP CONTENTS"},

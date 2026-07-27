@@ -69,6 +69,7 @@ class AnalysisWorker(QObject):
 
 class AgentPanel(QWidget):
     analysisCompleted = pyqtSignal(object)
+    candidateSelected = pyqtSignal(object)
     candidateActivated = pyqtSignal(object)
     reportExportRequested = pyqtSignal()
 
@@ -742,6 +743,7 @@ class AgentPanel(QWidget):
         candidate = items[0].data(0, Qt.UserRole)
         if not isinstance(candidate, Candidate):
             return
+        self.candidateSelected.emit(candidate)
         support = ", ".join(candidate.supporting_evidence) or "—"
         contradictions = "; ".join(candidate.contradictions) or "—"
         photo_match = (
@@ -798,6 +800,23 @@ class AgentPanel(QWidget):
         candidate = item.data(0, Qt.UserRole)
         if isinstance(candidate, Candidate):
             self.candidateActivated.emit(candidate)
+
+    def select_candidate(self, candidate: Candidate) -> bool:
+        for index in range(self.candidate_tree.topLevelItemCount()):
+            item = self.candidate_tree.topLevelItem(index)
+            stored = item.data(0, Qt.UserRole)
+            if (
+                isinstance(stored, Candidate)
+                and stored.candidate_id == candidate.candidate_id
+            ):
+                self.tabs.setCurrentWidget(self.candidate_tree)
+                if self.candidate_tree.currentItem() is item:
+                    self.candidateSelected.emit(stored)
+                else:
+                    self.candidate_tree.setCurrentItem(item)
+                self.candidate_tree.scrollToItem(item)
+                return True
+        return False
 
     @staticmethod
     def _escape(value: str) -> str:

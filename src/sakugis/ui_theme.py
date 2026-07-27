@@ -296,6 +296,36 @@ QLabel#SectionTitle {
     font-size: 16px;
     font-weight: 700;
 }
+QLabel#PlaceDetailsTitle {
+    color: #F2F8FC;
+    font-size: 19px;
+    font-weight: 700;
+}
+QLabel#PlaceScoreChip {
+    color: #82EAFF;
+    background: #143846;
+    border: 1px solid #2C6E81;
+    border-radius: 8px;
+    padding: 5px 8px;
+    font-weight: 700;
+    font-size: 11px;
+}
+QToolButton#PlacePhotoCard {
+    background: #0D1928;
+    color: #DDEAF4;
+    border: 1px solid #284158;
+    border-radius: 10px;
+    padding: 6px;
+    font-weight: 600;
+}
+QToolButton#PlacePhotoCard:hover {
+    background: #182E47;
+    border-color: #42D7F5;
+    color: #FFFFFF;
+}
+QTextBrowser#PlaceOverview {
+    padding: 10px 12px;
+}
 QLabel#StatusGood {
     color: #61E6A2;
     background: #15372D;

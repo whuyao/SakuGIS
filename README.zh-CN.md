@@ -30,6 +30,8 @@ QGIS 工程保存能力。由 [UrbanComp 团队](https://urbancomp.net)开发。
 - 将候选点和候选范围作为 QGIS 图层显示并支持双击定位
 - 候选位置图层组可展开；候选表格与点击对比面板分别显示综合评分、证据
   复核、照片覆盖、GIS 分数和覆盖率，双击候选即可定位
+- 单击候选列表、候选图层或地图标记，会在地图下方打开地点详情；面板整合
+  本地 GIS 证据、Brave Search 网页介绍、网络照片及可点击的原始来源
 - 中文 / English 运行时界面切换（“语言 / Language”菜单）
 - 浅色 / 深色外观切换并记住用户选择
 - 启动地图默认定位到湖北省武汉市
@@ -57,6 +59,12 @@ QGIS 工程保存能力。由 [UrbanComp 团队](https://urbancomp.net)开发。
     <td width="50%">
       <img src="docs/images/gis-verification-detail.webp" alt="SakuGIS 开普敦 GIS 核验详情">
       <br><sub><b>GIS 核验详情</b>——检查地点反查、空间约束、综合评分、覆盖率和数据来源。</sub>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <img src="docs/images/place-details-web-photos.webp" alt="SakuGIS 地点详情与网络照片">
+      <br><sub><b>地点详情与网络照片</b>——单击候选后，在地图下方联合查看 GIS 分数、地点介绍、Brave Search 相关照片和原始来源。</sub>
     </td>
   </tr>
 </table>
@@ -111,6 +119,22 @@ SAKUGIS_QWEN_MAX_PROMPT_CHARS=48000 \
 12,000 / 18,000 / 32,000 字符，客户端另有 48,000 字符总保护；不同模型可
 通过 `SAKUGIS_QWEN_MAX_PROMPT_CHARS` 调整最后一道保护。当前候选评分是用于
 比较候选的探索排序分数，尚未经过独立地理验证集校准，因此不是统计概率。
+
+## 地点介绍与网络照片
+
+候选地点详情使用 Brave Search 的 Web Search 和 Image Search 接口。网络检索
+在后台进行，不会阻塞地图拖动；网页与照片均保留可点击的原始来源。照片只是
+搜索相关结果，不代表已经由 SakuGIS 确认拍摄位置，版权归原始发布者所有。
+搜索结果和缩略图只在当前会话内短暂缓存，不写入磁盘。
+
+项目不会保存 Brave Key。可从本地文本文件安全导入 macOS 钥匙串：
+
+```bash
+./scripts/import-brave-key.py /path/to/brave-key.txt
+```
+
+钥匙串服务名为 `net.urbancomp.sakugis.brave`。开发时也可临时使用
+`SAKUGIS_BRAVE_API_KEY` 或 `BRAVE_SEARCH_API_KEY` 环境变量。
 
 ## GIS 核验后端
 

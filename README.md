@@ -34,6 +34,9 @@ Developed by the [UrbanComp team](https://urbancomp.net).
   `ST_DWithin`, and `ST_Distance`.
 - Expandable candidate layers and a click-to-compare panel with composite,
   evidence-review, cross-photo, GIS, and coverage signals.
+- Selecting a candidate row, layer, or map marker opens a details dock below
+  the map with local GIS evidence, Brave web descriptions, web photos, and
+  clickable original sources.
 - Bilingual Markdown query reports with evidence, checks, sources, and
   uncertainty notes.
 
@@ -58,6 +61,12 @@ Developed by the [UrbanComp team](https://urbancomp.net).
     <td width="50%">
       <img src="docs/images/gis-verification-detail.webp" alt="SakuGIS GIS verification details in Cape Town">
       <br><sub><b>GIS verification details</b> — review reverse geocoding, spatial checks, scores, coverage, and data sources.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <img src="docs/images/place-details-web-photos.webp" alt="SakuGIS place details and web photos">
+      <br><sub><b>Place details and web photos</b> — select a candidate to inspect GIS scores, web descriptions, Brave Search image references, and original sources below the map.</sub>
     </td>
   </tr>
 </table>
@@ -118,6 +127,25 @@ different model using `SAKUGIS_QWEN_MAX_PROMPT_CHARS`.
 
 Do not commit keys, profile CSV files, PostGIS DSNs, `.env` files, exported
 query data, or private photographs. See [SECURITY.md](SECURITY.md).
+
+## Place descriptions and web photos
+
+Candidate details use Brave Web Search and Image Search in background threads,
+so map interaction remains responsive. Every web result and image links to its
+original page. Images are search-related references, not confirmed capture
+locations, and remain subject to the original publisher's rights. Results and
+thumbnail bytes use only a short-lived in-memory session cache and are not
+persisted to disk.
+
+Import a local Brave key text file into the macOS Keychain:
+
+```bash
+./scripts/import-brave-key.py /path/to/brave-key.txt
+```
+
+The Keychain service is `net.urbancomp.sakugis.brave`. For a temporary
+development session, use `SAKUGIS_BRAVE_API_KEY` or
+`BRAVE_SEARCH_API_KEY`.
 
 ## GIS verification
 
