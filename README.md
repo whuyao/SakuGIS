@@ -34,6 +34,11 @@ Developed by the [UrbanComp team](https://urbancomp.net).
   `ST_DWithin`, and `ST_Distance`.
 - Expandable candidate layers and a click-to-compare panel with composite,
   evidence-review, cross-photo, GIS, and coverage signals.
+- Selecting a candidate row, layer, or map marker opens a movable Place
+  Explorer window with local GIS evidence, Brave web descriptions, web
+  photos, and clickable original sources. It remains hidden unless the
+  candidate has both a named GIS identity and online material, and can be
+  resized or docked back into the main window.
 - Bilingual Markdown query reports with evidence, checks, sources, and
   uncertainty notes.
 
@@ -58,6 +63,42 @@ Developed by the [UrbanComp team](https://urbancomp.net).
     <td width="50%">
       <img src="docs/images/gis-verification-detail.webp" alt="SakuGIS GIS verification details in Cape Town">
       <br><sub><b>GIS verification details</b> — review reverse geocoding, spatial checks, scores, coverage, and data sources.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/images/place-details-web-photos.webp" alt="SakuGIS place details and web photos">
+      <br><sub><b>Docked Place Explorer</b> — reattach results below the map for continuous candidate comparison.</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/images/place-details-floating-window.webp" alt="SakuGIS floating Place Explorer for Yellow Crane Tower">
+      <br><sub><b>Floating Place Explorer</b> — opens only after a named GIS identity and valid online material are found; drag or resize it without shrinking the map. This live Yellow Crane Tower query returned six descriptions and eight photos.</sub>
+    </td>
+  </tr>
+</table>
+
+### Live global examples
+
+The following captures come from the packaged Apple Silicon application. Each
+case completed the three-agent Qwen pipeline, OSM/GIS verification, candidate
+comparison, and Brave-backed place-photo discovery. Scores remain uncalibrated
+ranking signals.
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/images/beijing-palace-museum.webp" alt="SakuGIS Beijing Palace Museum result">
+      <br><sub><b>Beijing Palace Museum</b> — ranked above the Taipei and Shenyang alternatives with an 83.9 composite score and 100% GIS coverage.</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/images/paris-eiffel-tower.webp" alt="SakuGIS Paris Eiffel Tower result">
+      <br><sub><b>Paris Eiffel Tower</b> — separated the Paris landmark from the Las Vegas replica with an 88.8 composite score and 78.0 GIS score.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <img src="docs/images/sydney-opera-house.webp" alt="SakuGIS Sydney Opera House result">
+      <br><sub><b>Sydney Opera House</b> — ranked Sydney first and suppressed Copenhagen and Oslo false hypotheses; the details dock loaded five descriptions and eight source-linked photos.</sub>
     </td>
   </tr>
 </table>
@@ -118,6 +159,31 @@ different model using `SAKUGIS_QWEN_MAX_PROMPT_CHARS`.
 
 Do not commit keys, profile CSV files, PostGIS DSNs, `.env` files, exported
 query data, or private photographs. See [SECURITY.md](SECURITY.md).
+
+## Place descriptions and web photos
+
+Candidate details use Brave Web Search and Image Search in background threads,
+so map interaction remains responsive. Every web result and image links to its
+original page. Images are search-related references, not confirmed capture
+locations, and remain subject to the original publisher's rights. Results and
+thumbnail bytes use only a short-lived in-memory session cache and are not
+persisted to disk. Image discovery expands the search pool, removes obvious
+retail, liquor, toy, model, and shopping-page noise, and limits repeated
+results from one source page to improve diversity. This filtering is heuristic
+and does not replace source review. The Place Explorer is shown only when GIS
+verification provides a named place identity and Brave returns at least one
+valid description or image; otherwise SakuGIS keeps the candidate on the map
+and displays only a brief no-results status message.
+
+Import a local Brave key text file into the macOS Keychain:
+
+```bash
+./scripts/import-brave-key.py /path/to/brave-key.txt
+```
+
+The Keychain service is `net.urbancomp.sakugis.brave`. For a temporary
+development session, use `SAKUGIS_BRAVE_API_KEY` or
+`BRAVE_SEARCH_API_KEY`.
 
 ## GIS verification
 

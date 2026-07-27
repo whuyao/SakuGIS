@@ -13,6 +13,7 @@ from typing import Dict
 KEYCHAIN_SERVICE = "net.urbancomp.sakugis.qwen"
 KEYCHAIN_ACCOUNT = "UrbanComp"
 POSTGIS_KEYCHAIN_SERVICE = "net.urbancomp.sakugis.postgis"
+BRAVE_KEYCHAIN_SERVICE = "net.urbancomp.sakugis.brave"
 DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 DEFAULT_MODEL = "qwen3.7-plus"
 
@@ -203,3 +204,75 @@ def get_postgis_dsn() -> str:
 
 def has_postgis_dsn() -> bool:
     return bool(get_postgis_dsn())
+
+
+def get_brave_api_key() -> str:
+    """Resolve the Brave Search key without writing it to project files."""
+
+    configured = os.environ.get("SAKUGIS_BRAVE_API_KEY") or os.environ.get(
+        "BRAVE_SEARCH_API_KEY"
+    )
+    if configured:
+        return configured.strip()
+    try:
+        result = subprocess.run(
+            [
+                "/usr/bin/security",
+                "find-generic-password",
+                "-a",
+                KEYCHAIN_ACCOUNT,
+                "-s",
+                BRAVE_KEYCHAIN_SERVICE,
+                "-w",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise CredentialError("无法访问 macOS 钥匙串。") from exc
+    key = result.stdout.strip() if result.returncode == 0 else ""
+    if not key:
+        raise CredentialError("尚未配置 Brave Search API Key。")
+    return key
+
+
+def store_brave_api_key(api_key: str) -> None:
+    """Store a Brave Search key in the current user's macOS Keychain."""
+
+    key = api_key.strip()
+    if len(key) < 20 or "\n" in key or "\r" in key:
+        raise CredentialError("Brave Search API Key 格式无效。")
+    try:
+        result = subprocess.run(
+            [
+                "/usr/bin/security",
+                "add-generic-password",
+                "-U",
+                "-a",
+                KEYCHAIN_ACCOUNT,
+                "-s",
+                BRAVE_KEYCHAIN_SERVICE,
+                "-w",
+                key,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise CredentialError("无法访问 macOS 钥匙串。") from exc
+    if result.returncode != 0:
+        raise CredentialError(
+            "Brave Search API Key 写入 macOS 钥匙串失败。"
+        )
+
+
+def has_brave_api_key() -> bool:
+    try:
+        return bool(get_brave_api_key())
+    except CredentialError:
+        return False

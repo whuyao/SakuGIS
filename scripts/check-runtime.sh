@@ -69,7 +69,16 @@ fi
 import os
 
 from qgis.PyQt.QtCore import QTimer
-from qgis.core import Qgis, QgsApplication, QgsProviderRegistry, QgsRasterLayer
+from qgis.core import (
+    Qgis,
+    QgsApplication,
+    QgsProviderRegistry,
+    QgsRasterLayer,
+    QgsSettings,
+)
+
+if os.environ.get("SAKUGIS_SMOKE_AGENT_RESULT") == "1":
+    os.environ.setdefault("SAKUGIS_SMOKE_DISABLE_PLACE_SEARCH", "1")
 
 QgsApplication.setPrefixPath(__import__("os").environ["QGIS_PREFIX_PATH"], True)
 app = QgsApplication([], True)
@@ -79,6 +88,19 @@ QgsProviderRegistry.instance(__import__("os").environ["QGIS_PLUGIN_PATH"])
 app.initQgis()
 QgsApplication.setPkgDataPath(__import__("os").environ["QGIS_PKG_DATA_PATH"])
 QgsApplication.setPluginPath(__import__("os").environ["QGIS_PLUGIN_PATH"])
+
+place_setting_keys = (
+    "sakugis/ui/place-details-floating",
+    "sakugis/ui/place-details-geometry",
+)
+place_settings = QgsSettings()
+place_setting_snapshot = {
+    key: (
+        place_settings.contains(key),
+        place_settings.value(key),
+    )
+    for key in place_setting_keys
+}
 
 from sakugis.ui_theme import apply_theme
 
@@ -102,7 +124,11 @@ window = MainWindow()
 window.show()
 app.processEvents()
 
-from qgis.core import QgsCoordinateReferenceSystem, QgsCoordinateTransform
+from qgis.core import (
+    QgsCoordinateReferenceSystem,
+    QgsCoordinateTransform,
+    QgsPointXY,
+)
 
 center_transform = QgsCoordinateTransform(
     window.canvas.mapSettings().destinationCrs(),
@@ -132,6 +158,9 @@ window._set_theme(DARK)
 if get_theme() != DARK or "#07101B" not in app.styleSheet():
     raise SystemExit("Dark theme did not restore")
 print("Light/dark theme switch: OK")
+smoke_theme = os.environ.get("SAKUGIS_SMOKE_THEME")
+if smoke_theme:
+    window._set_theme(smoke_theme)
 
 smoke_language = os.environ.get("SAKUGIS_SMOKE_LANGUAGE")
 if smoke_language:
@@ -303,6 +332,46 @@ if os.environ.get("SAKUGIS_SMOKE_AGENT_RESULT") == "1":
         app.processEvents()
     window.layer_panel.view.setCurrentLayer(sample_candidate_layers[0])
     app.processEvents()
+    selected_candidate = sample_result.candidates[0]
+    if window.place_details_dock.isVisible():
+        raise SystemExit("Candidate details opened without online material")
+    if (
+        window.place_details_panel.current_candidate().candidate_id
+        != selected_candidate.candidate_id
+    ):
+        raise SystemExit("Candidate details did not follow layer selection")
+    QgsSettings().setValue("sakugis/ui/place-details-floating", True)
+    window._on_place_details_available(selected_candidate)
+    app.processEvents()
+    if not window.place_details_dock.isVisible():
+        raise SystemExit("Qualified candidate details did not open")
+    if not window.place_details_dock.isFloating():
+        raise SystemExit("Candidate details did not open as a floating window")
+    destination_point = QgsCoordinateTransform(
+        QgsCoordinateReferenceSystem("EPSG:4326"),
+        window.canvas.mapSettings().destinationCrs(),
+        window.project,
+    ).transform(
+        QgsPointXY(
+            selected_candidate.longitude,
+            selected_candidate.latitude,
+        )
+    )
+    if (
+        window._nearest_candidate(destination_point).candidate_id
+        != selected_candidate.candidate_id
+    ):
+        raise SystemExit("Map marker hit testing did not find candidate")
+    window._set_language("en")
+    if window.place_details_panel.tabs.tabText(1) != "Web Photos":
+        raise SystemExit("English place details translation did not apply")
+    window._set_language("zh_CN")
+    if window.place_details_panel.tabs.tabText(1) != "网络照片":
+        raise SystemExit("Chinese place details translation did not apply")
+    print("Candidate details availability gate: OK")
+    print("Candidate details floating window: OK")
+    print("Candidate details list/layer/map linkage: OK")
+    print("Candidate details Chinese/English switch: OK")
     window._refresh_attribution()
     if (
         os.environ.get("SAKUGIS_SMOKE_GOOGLE") == "1"
@@ -320,6 +389,14 @@ if os.environ.get("SAKUGIS_SMOKE_AGENT_RESULT") == "1":
 
 screenshot_path = os.environ.get("SAKUGIS_SMOKE_SCREENSHOT")
 duration_ms = int(os.environ.get("SAKUGIS_SMOKE_DURATION_MS", "750"))
+place_tab = os.environ.get("SAKUGIS_SMOKE_PLACE_TAB")
+if place_tab is not None:
+    QTimer.singleShot(
+        max(100, duration_ms - 1800),
+        lambda: window.place_details_panel.tabs.setCurrentIndex(
+            int(place_tab)
+        ),
+    )
 if screenshot_path:
     screenshot_delay = int(
         os.environ.get(
@@ -333,5 +410,11 @@ QTimer.singleShot(duration_ms, app.quit)
 app.exec_()
 print("Main window smoke test: OK")
 
+window.prepare_for_shutdown()
+for key, (existed, value) in place_setting_snapshot.items():
+    if existed:
+        place_settings.setValue(key, value)
+    else:
+        place_settings.remove(key)
 app.exitQgis()
 PY

@@ -5,8 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from datetime import datetime
 import re
+from typing import Optional
 
-from qgis.PyQt.QtCore import QTimer, Qt, QVariant
+from qgis.PyQt.QtCore import QPoint, QTimer, Qt, QVariant
 from qgis.PyQt.QtGui import QColor, QKeySequence
 from qgis.PyQt.QtWidgets import (
     QAction,
@@ -49,6 +50,7 @@ from sakugis.agent_panel import AgentPanel
 from sakugis.i18n import EN, ZH_CN, get_language, set_language, tr
 from sakugis.layer_panel import LayerPanel
 from sakugis.map_defaults import WUHAN_INITIAL_EXTENT_WGS84
+from sakugis.place_details_panel import PlaceDetailsPanel
 from sakugis.reporting import write_markdown_report
 from sakugis.ui_components import MapHud, WelcomeOverlay
 from sakugis.ui_theme import (
@@ -61,15 +63,57 @@ from sakugis.ui_theme import (
 )
 
 
+class CandidatePanTool(QgsMapToolPan):
+    """Normal pan tool that also recognizes a short click on a candidate."""
+
+    def __init__(self, canvas, click_callback):
+        super().__init__(canvas)
+        self._click_callback = click_callback
+        self._press_position = None
+
+    def canvasPressEvent(self, event) -> None:
+        self._press_position = event.pos()
+        super().canvasPressEvent(event)
+
+    def canvasReleaseEvent(self, event) -> None:
+        press_position = self._press_position
+        super().canvasReleaseEvent(event)
+        self._press_position = None
+        if (
+            press_position is not None
+            and (event.pos() - press_position).manhattanLength() <= 6
+        ):
+            self._click_callback(event.mapPoint())
+
+
+def _setting_bool(value, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    normalized = str(value or "").strip().casefold()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("SakuGIS")
         self.resize(1440, 900)
         self.setMinimumSize(1040, 680)
+        self.setCorner(
+            Qt.BottomLeftCorner, Qt.LeftDockWidgetArea
+        )
+        self.setCorner(
+            Qt.BottomRightCorner, Qt.RightDockWidgetArea
+        )
         self._last_analysis_result = None
         self._coordinate_display = None
         self._current_scale = None
+        self._candidates_by_id = {}
+        self._place_details_available = False
 
         self.project = QgsProject.instance()
         self._shutting_down = False
@@ -99,11 +143,17 @@ class MainWindow(QMainWindow):
         )
         self.layer_dock.setWidget(self.layer_panel)
         self.layer_dock.setMinimumWidth(360)
+        self.layer_dock.setMaximumWidth(410)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.layer_dock)
 
         self.agent_panel = AgentPanel(self)
         self.agent_panel.analysisCompleted.connect(self.show_agent_result)
-        self.agent_panel.candidateActivated.connect(self.zoom_to_candidate)
+        self.agent_panel.candidateSelected.connect(
+            self.show_candidate_details
+        )
+        self.agent_panel.candidateActivated.connect(
+            self._activate_candidate
+        )
         self.agent_panel.reportExportRequested.connect(self.export_report)
         self.agent_dock = QDockWidget(tr("dock.agents"), self)
         self.agent_dock.setObjectName("geoAgentsDock")
@@ -112,14 +162,53 @@ class MainWindow(QMainWindow):
         )
         self.agent_dock.setWidget(self.agent_panel)
         self.agent_dock.setMinimumWidth(430)
+        self.agent_dock.setMaximumWidth(520)
         self.addDockWidget(Qt.RightDockWidgetArea, self.agent_dock)
+
+        self.place_details_panel = PlaceDetailsPanel(self)
+        self.place_details_panel.contentAvailable.connect(
+            self._on_place_details_available
+        )
+        self.place_details_panel.contentUnavailable.connect(
+            self._on_place_details_unavailable
+        )
+        self.place_details_dock = QDockWidget(
+            tr("dock.place_details"), self
+        )
+        self.place_details_dock.setObjectName("placeDetailsDock")
+        self.place_details_dock.setAllowedAreas(
+            Qt.LeftDockWidgetArea
+            | Qt.RightDockWidgetArea
+            | Qt.BottomDockWidgetArea
+            | Qt.TopDockWidgetArea
+        )
+        self.place_details_dock.setFeatures(
+            QDockWidget.DockWidgetClosable
+            | QDockWidget.DockWidgetMovable
+            | QDockWidget.DockWidgetFloatable
+        )
+        self.place_details_dock.setWidget(self.place_details_panel)
+        self.place_details_dock.setMinimumSize(440, 260)
+        self.addDockWidget(
+            Qt.BottomDockWidgetArea, self.place_details_dock
+        )
+        self.place_details_dock.hide()
+        self.place_details_dock.toggleViewAction().setEnabled(False)
+        self.place_details_dock.topLevelChanged.connect(
+            self._place_details_top_level_changed
+        )
+        self.place_details_dock.visibilityChanged.connect(
+            self._place_details_visibility_changed
+        )
 
         self.bridge = QgsLayerTreeMapCanvasBridge(
             self.project.layerTreeRoot(), self.canvas, self
         )
         self.bridge.setCanvasLayers()
 
-        self.pan_tool = QgsMapToolPan(self.canvas)
+        self.pan_tool = CandidatePanTool(
+            self.canvas, self._select_candidate_at_map_point
+        )
         self.zoom_in_tool = QgsMapToolZoom(self.canvas, False)
         self.zoom_out_tool = QgsMapToolZoom(self.canvas, True)
 
@@ -282,6 +371,9 @@ class MainWindow(QMainWindow):
 
         self.agent_menu = self.menuBar().addMenu(tr("menu.agent"))
         self.agent_menu.addAction(self.agent_dock.toggleViewAction())
+        self.agent_menu.addAction(
+            self.place_details_dock.toggleViewAction()
+        )
 
         self.appearance_menu = self.menuBar().addMenu(tr("menu.appearance"))
         self.appearance_menu.addAction(self.light_theme_action)
@@ -385,6 +477,10 @@ class MainWindow(QMainWindow):
         self.dark_theme_action.setText(tr("theme.dark"))
         self.layer_dock.setWindowTitle(tr("dock.layers"))
         self.agent_dock.setWindowTitle(tr("dock.agents"))
+        self.place_details_dock.setWindowTitle(tr("dock.place_details"))
+        self.place_details_dock.toggleViewAction().setText(
+            tr("action.place_details")
+        )
         self.main_toolbar.setWindowTitle(tr("toolbar.main"))
         self.render_status.setText(tr("status.ready"))
         if self._coordinate_display is None:
@@ -400,6 +496,7 @@ class MainWindow(QMainWindow):
             )
         self.layer_panel.retranslate_ui()
         self.agent_panel.retranslate_ui()
+        self.place_details_panel.retranslate_ui()
         self.welcome_overlay.retranslate_ui()
         self.map_hud.retranslate_ui()
         self._update_workspace_state()
@@ -792,6 +889,10 @@ class MainWindow(QMainWindow):
 
     def show_agent_result(self, result: GeoAnalysisResult) -> None:
         self._last_analysis_result = result
+        self._candidates_by_id = {
+            candidate.candidate_id: candidate
+            for candidate in result.candidates
+        }
         self.export_report_action.setEnabled(True)
         self._hide_welcome()
         root = self.project.layerTreeRoot()
@@ -897,6 +998,9 @@ class MainWindow(QMainWindow):
                 "sakugis/candidate-layer", True
             )
             candidate_layer.setCustomProperty(
+                "sakugis/candidate-id", candidate.candidate_id
+            )
+            candidate_layer.setCustomProperty(
                 "sakugis/candidate-name", candidate.name
             )
             candidate_layer.setCustomProperty(
@@ -985,6 +1089,12 @@ class MainWindow(QMainWindow):
         self._refresh_attribution()
 
     def _zoom_to_candidate_layer(self, layer) -> None:
+        candidate_id = str(
+            layer.customProperty("sakugis/candidate-id", "")
+        )
+        candidate = self._candidates_by_id.get(candidate_id)
+        if candidate is not None:
+            self.agent_panel.select_candidate(candidate)
         try:
             latitude = float(
                 layer.customProperty("sakugis/candidate-latitude")
@@ -1079,6 +1189,142 @@ class MainWindow(QMainWindow):
         )
         self.canvas.refresh()
 
+    def _activate_candidate(self, candidate: Candidate) -> None:
+        self.zoom_to_candidate(candidate)
+
+    def show_candidate_details(self, candidate: Candidate) -> None:
+        if not isinstance(candidate, Candidate):
+            return
+        if self.place_details_dock.isVisible():
+            self._save_place_details_geometry()
+        self._place_details_available = False
+        self.place_details_dock.toggleViewAction().setEnabled(False)
+        self.place_details_dock.hide()
+        self.statusBar().showMessage(tr("place.checking"), 5000)
+        self.place_details_panel.set_candidate(candidate)
+
+    def _on_place_details_available(self, candidate: Candidate) -> None:
+        current = self.place_details_panel.current_candidate()
+        if (
+            current is None
+            or current.candidate_id != candidate.candidate_id
+        ):
+            return
+        self._place_details_available = True
+        action = self.place_details_dock.toggleViewAction()
+        action.setEnabled(True)
+        settings = QgsSettings()
+        floating = _setting_bool(
+            settings.value(
+                "sakugis/ui/place-details-floating",
+                True,
+            ),
+            True,
+        )
+        self.place_details_dock.setFloating(floating)
+        if floating:
+            geometry = settings.value(
+                "sakugis/ui/place-details-geometry"
+            )
+            restored = False
+            if geometry:
+                try:
+                    restored = bool(
+                        self.place_details_dock.restoreGeometry(geometry)
+                    )
+                except (TypeError, ValueError):
+                    restored = False
+            if not restored:
+                width, height = 760, 500
+                self.place_details_dock.resize(width, height)
+                self.place_details_dock.move(
+                    self.mapToGlobal(
+                        QPoint(
+                            max(24, (self.width() - width) // 2),
+                            max(64, (self.height() - height) // 2),
+                        )
+                    )
+                )
+        else:
+            self.resizeDocks(
+                [self.place_details_dock],
+                [320],
+                Qt.Vertical,
+            )
+        self.place_details_dock.show()
+        self.place_details_dock.raise_()
+        self.statusBar().showMessage(tr("place.available"), 3500)
+
+    def _on_place_details_unavailable(
+        self, candidate: Candidate, reason: str
+    ) -> None:
+        current = self.place_details_panel.current_candidate()
+        if (
+            current is None
+            or current.candidate_id != candidate.candidate_id
+        ):
+            return
+        self._place_details_available = False
+        self.place_details_dock.toggleViewAction().setEnabled(False)
+        self.place_details_dock.hide()
+        key = {
+            "gis_identity": "place.hidden.gis_identity",
+            "no_material": "place.hidden.no_material",
+            "key_missing": "place.hidden.key_missing",
+            "local_only": "place.hidden.local_only",
+        }.get(reason, "place.hidden.search_failed")
+        self.statusBar().showMessage(tr(key), 6000)
+
+    def _place_details_top_level_changed(self, floating: bool) -> None:
+        if floating:
+            self.place_details_dock.setMinimumSize(620, 400)
+        else:
+            self.place_details_dock.setMinimumSize(440, 260)
+        QgsSettings().setValue(
+            "sakugis/ui/place-details-floating",
+            bool(floating),
+        )
+
+    def _place_details_visibility_changed(self, visible: bool) -> None:
+        if not visible:
+            self._save_place_details_geometry()
+
+    def _save_place_details_geometry(self) -> None:
+        if self.place_details_dock.isFloating():
+            QgsSettings().setValue(
+                "sakugis/ui/place-details-geometry",
+                self.place_details_dock.saveGeometry(),
+            )
+
+    def _select_candidate_at_map_point(self, point) -> None:
+        candidate = self._nearest_candidate(point)
+        if candidate is None:
+            return
+        self.agent_panel.select_candidate(candidate)
+
+    def _nearest_candidate(self, point) -> Optional[Candidate]:
+        if not self._candidates_by_id:
+            return None
+        transform = QgsCoordinateTransform(
+            QgsCoordinateReferenceSystem("EPSG:4326"),
+            self.canvas.mapSettings().destinationCrs(),
+            self.project,
+        )
+        tolerance = max(self.canvas.mapUnitsPerPixel() * 14.0, 1.0)
+        nearest = None
+        nearest_distance = tolerance
+        for candidate in self._candidates_by_id.values():
+            projected = transform.transform(
+                QgsPointXY(candidate.longitude, candidate.latitude)
+            )
+            dx = projected.x() - point.x()
+            dy = projected.y() - point.y()
+            distance = (dx * dx + dy * dy) ** 0.5
+            if distance <= nearest_distance:
+                nearest = candidate
+                nearest_distance = distance
+        return nearest
+
     def _refresh_attribution(self) -> None:
         attributions = []
         root = self.project.layerTreeRoot()
@@ -1144,6 +1390,8 @@ class MainWindow(QMainWindow):
         if self._shutting_down:
             return
         self._shutting_down = True
+        self._save_place_details_geometry()
+        self.place_details_panel.shutdown()
         try:
             self.project.layerTreeRoot().visibilityChanged.disconnect(
                 self._visibility_slot

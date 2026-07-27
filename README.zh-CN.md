@@ -30,6 +30,10 @@ QGIS 工程保存能力。由 [UrbanComp 团队](https://urbancomp.net)开发。
 - 将候选点和候选范围作为 QGIS 图层显示并支持双击定位
 - 候选位置图层组可展开；候选表格与点击对比面板分别显示综合评分、证据
   复核、照片覆盖、GIS 分数和覆盖率，双击候选即可定位
+- 单击候选列表、候选图层或地图标记，会打开可拖动、缩放和重新停靠的
+  Place Explorer 浮窗；浮窗整合本地 GIS 证据、Brave Search 网页介绍、
+  网络照片及可点击的原始来源。只有候选同时具备具名 GIS 地点身份和有效
+  网络资料时才会显示
 - 中文 / English 运行时界面切换（“语言 / Language”菜单）
 - 浅色 / 深色外观切换并记住用户选择
 - 启动地图默认定位到湖北省武汉市
@@ -57,6 +61,41 @@ QGIS 工程保存能力。由 [UrbanComp 团队](https://urbancomp.net)开发。
     <td width="50%">
       <img src="docs/images/gis-verification-detail.webp" alt="SakuGIS 开普敦 GIS 核验详情">
       <br><sub><b>GIS 核验详情</b>——检查地点反查、空间约束、综合评分、覆盖率和数据来源。</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/images/place-details-web-photos.webp" alt="SakuGIS 地点详情与网络照片">
+      <br><sub><b>停靠式 Place Explorer</b>——可重新停靠在地图下方，连续对比候选位置。</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/images/place-details-floating-window.webp" alt="SakuGIS 黄鹤楼浮动 Place Explorer">
+      <br><sub><b>浮动式 Place Explorer</b>——仅在具名 GIS 地点身份和有效网络资料同时存在时出现；可拖动、调整大小，不压缩主地图。本次黄鹤楼真实检索返回 6 条介绍和 8 张照片。</sub>
+    </td>
+  </tr>
+</table>
+
+### 真实全球案例
+
+以下截图均来自打包后的 Apple Silicon 应用。每个案例都完整执行了三 Agent
+千问流水线、OSM/GIS 核验、候选比较和基于 Brave Search 的地点照片检索。
+当前分数仍是未经校准的排序信号。
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/images/beijing-palace-museum.webp" alt="SakuGIS 北京故宫博物院结果">
+      <br><sub><b>北京故宫博物院</b>——在北京、台北和沈阳候选中正确排名第一，综合评分 83.9，GIS 覆盖率 100%。</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/images/paris-eiffel-tower.webp" alt="SakuGIS 巴黎埃菲尔铁塔结果">
+      <br><sub><b>巴黎埃菲尔铁塔</b>——将巴黎地标与拉斯维加斯复制品区分开，综合评分 88.8，GIS 分数 78.0。</sub>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <img src="docs/images/sydney-opera-house.webp" alt="SakuGIS 悉尼歌剧院结果">
+      <br><sub><b>悉尼歌剧院</b>——将悉尼排在第一并压低哥本哈根、奥斯陆误识候选；详情面板加载了 5 条介绍和 8 张带来源链接的照片。</sub>
     </td>
   </tr>
 </table>
@@ -111,6 +150,27 @@ SAKUGIS_QWEN_MAX_PROMPT_CHARS=48000 \
 12,000 / 18,000 / 32,000 字符，客户端另有 48,000 字符总保护；不同模型可
 通过 `SAKUGIS_QWEN_MAX_PROMPT_CHARS` 调整最后一道保护。当前候选评分是用于
 比较候选的探索排序分数，尚未经过独立地理验证集校准，因此不是统计概率。
+
+## 地点介绍与网络照片
+
+候选地点详情使用 Brave Search 的 Web Search 和 Image Search 接口。网络检索
+在后台进行，不会阻塞地图拖动；网页与照片均保留可点击的原始来源。照片只是
+搜索相关结果，不代表已经由 SakuGIS 确认拍摄位置，版权归原始发布者所有。
+搜索结果和缩略图只在当前会话内短暂缓存，不写入磁盘。图片检索会扩大初始
+候选池，过滤明显的零售商品、酒类、玩具、模型和购物页面，并限制同一来源
+页面重复出现的数量，以提高来源多样性。该过滤属于启发式规则，不能替代
+用户对原始来源的检查。只有 GIS 核验提供具名地点身份，并且 Brave 至少
+返回一条有效介绍或一张相关照片时，Place Explorer 才会出现；否则候选仍
+保留在地图和候选表中，界面只显示简短的无结果状态提示。
+
+项目不会保存 Brave Key。可从本地文本文件安全导入 macOS 钥匙串：
+
+```bash
+./scripts/import-brave-key.py /path/to/brave-key.txt
+```
+
+钥匙串服务名为 `net.urbancomp.sakugis.brave`。开发时也可临时使用
+`SAKUGIS_BRAVE_API_KEY` 或 `BRAVE_SEARCH_API_KEY` 环境变量。
 
 ## GIS 核验后端
 
