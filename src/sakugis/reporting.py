@@ -38,6 +38,10 @@ def build_markdown_report(
     result: GeoAnalysisResult, generated_at: datetime = None
 ) -> str:
     generated = generated_at or datetime.now().astimezone()
+    image_paths = result.image_paths or (
+        [result.image_path] if result.image_path else []
+    )
+    photo_names = [Path(path).name for path in image_paths]
     lines = [
         f"# {tr('report.title')}",
         "",
@@ -47,8 +51,8 @@ def build_markdown_report(
         "",
         f"- **{tr('report.query')}**: {_text(result.query)}",
         (
-            f"- **{tr('report.photo')}**: "
-            f"{_text(result.image_path) if result.image_path else tr('report.none')}"
+            f"- **{tr('report.photos')}**: "
+            f"{_join(photo_names) if photo_names else tr('report.none')}"
         ),
         "",
         f"## {tr('report.evidence')}",
@@ -57,23 +61,26 @@ def build_markdown_report(
         "",
         (
             f"| ID | {tr('agent.evidence')} | {tr('agent.content')} | "
-            f"{tr('report.reliability')} | {tr('report.source')} |"
+            f"{tr('agent.photos')} | {tr('report.reliability')} | "
+            f"{tr('report.source')} |"
         ),
-        "|---|---|---|---:|---|",
+        "|---|---|---|---|---:|---|",
     ]
     if result.evidence:
         for evidence in result.evidence:
             lines.append(
-                "| {id} | {kind} | {value} | {reliability:.0f}% | {source} |".format(
+                "| {id} | {kind} | {value} | {photos} | "
+                "{reliability:.0f}% | {source} |".format(
                     id=_cell(evidence.evidence_id),
                     kind=_cell(evidence.kind),
                     value=_cell(evidence.value),
+                    photos=_cell(_join(evidence.photo_ids)),
                     reliability=evidence.reliability * 100,
                     source=_cell(evidence.source),
                 )
             )
     else:
-        lines.append("| — | — | — | — | — |")
+        lines.append("| — | — | — | — | — | — |")
 
     lines.extend(
         [
@@ -112,10 +119,11 @@ def build_markdown_report(
             (
                 f"| {tr('report.rank')} | ID | {tr('report.location')} | "
                 f"{tr('report.coordinates')} | {tr('report.composite')} | "
+                f"{tr('report.photo_consistency')} | "
                 f"{tr('report.gis_score')} | {tr('report.coverage')} | "
                 f"{tr('report.radius')} |"
             ),
-            "|---:|---|---|---|---:|---:|---:|---:|",
+            "|---:|---|---|---|---:|---:|---:|---:|---:|",
         ]
     )
     if result.candidates:
@@ -129,16 +137,22 @@ def build_markdown_report(
                 )
                 if part
             )
+            photo_match = (
+                f"{candidate.photo_support_count}/{candidate.photo_total_count}"
+                if candidate.photo_total_count > 1
+                else "—"
+            )
             lines.append(
                 f"| {rank} | {_cell(candidate.candidate_id)} | {_cell(location)} | "
                 f"`{candidate.latitude:.6f}, {candidate.longitude:.6f}` | "
                 f"{candidate.ranking_score * 100:.1f}/100 | "
+                f"{photo_match} | "
                 f"{candidate.gis_score * 100:.1f}/100 | "
                 f"{candidate.gis_coverage * 100:.1f}% | "
                 f"{candidate.radius_km:g} km |"
             )
     else:
-        lines.append("| — | — | — | — | — | — | — | — |")
+        lines.append("| — | — | — | — | — | — | — | — | — |")
 
     lines.extend(["", f"## {tr('report.details')}", ""])
     for rank, candidate in enumerate(result.candidates, 1):
@@ -163,11 +177,18 @@ def build_markdown_report(
             lines.append(
                 f"- **{tr('report.score_breakdown')}**: "
                 + tr(
-                    "report.score_formula",
+                    (
+                        "report.score_formula_multi"
+                        if candidate.photo_total_count > 1
+                        else "report.score_formula"
+                    ),
                     retrieval=f"{components.get('retrieval', 0.0) * 100:.1f}",
                     model=f"{components.get('model', 0.0) * 100:.1f}",
                     effective_model=f"{components.get('effective_model', 0.0) * 100:.1f}",
                     confidence=f"{components.get('evidence_confidence', 0.0) * 100:.0f}",
+                    photo=(
+                        f"{components.get('effective_photo_consistency', 0.0) * 100:.0f}"
+                    ),
                     gis=f"{components.get('gis', 0.0) * 100:.1f}",
                     effective_gis=f"{components.get('effective_gis', 0.0) * 100:.1f}",
                     coverage=f"{components.get('gis_coverage', 0.0) * 100:.0f}",

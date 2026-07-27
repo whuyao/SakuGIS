@@ -19,7 +19,8 @@ Developed by the [UrbanComp team](https://urbancomp.net).
 - Local GeoJSON, GeoPackage, Shapefile, KML, GeoTIFF, and common GIS formats.
 - Layer visibility, ordering, renaming, opacity, and candidate navigation.
 - Chinese and English runtime UI.
-- Photo and natural-language geolocation queries.
+- Multi-photo Case workspace: jointly analyze up to six photos captured at
+  the same location, while retaining single-photo and text-only queries.
 - Three-stage agent pipeline:
   1. extract visual and contextual evidence;
   2. generate geographically diverse candidate locations;
@@ -27,7 +28,8 @@ Developed by the [UrbanComp team](https://urbancomp.net).
 - Real OSM Nominatim reverse geocoding and Overpass spatial constraints.
 - Optional local PostgreSQL/PostGIS verification with `ST_Covers`,
   `ST_DWithin`, and `ST_Distance`.
-- Expandable candidate layers with overall score, GIS score, and coverage.
+- Expandable candidate layers and a click-to-compare panel with composite,
+  evidence-review, cross-photo, GIS, and coverage signals.
 - Bilingual Markdown query reports with evidence, checks, sources, and
   uncertainty notes.
 
@@ -58,6 +60,7 @@ Developed by the [UrbanComp team](https://urbancomp.net).
 
 ## Requirements
 
+- Apple Silicon Mac (M1 or later); Intel Macs are not supported
 - macOS 13 or later
 - QGIS 3.40 or later; QGIS 3.44 LTR is recommended
 - The Python, PyQt, and PyQGIS runtime bundled with QGIS
@@ -148,7 +151,7 @@ Runtime checks that depend on QGIS can be run with:
 
 Generated `.app`, DMG, QGIS runtime, and generated `.icns` files are
 deliberately excluded from Git. The packaging script creates the icon from
-`resources/icon.svg` when necessary.
+`resources/icon.svg` when necessary and rejects QGIS runtimes without arm64.
 
 Build a locally runnable application:
 

@@ -8,12 +8,15 @@ from typing import Optional
 from qgis.PyQt.QtCore import QObject, QThread, Qt, pyqtSignal, pyqtSlot
 from qgis.PyQt.QtGui import QPixmap
 from qgis.PyQt.QtWidgets import (
+    QAbstractItemView,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
     QInputDialog,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMessageBox,
     QProgressBar,
     QPushButton,
@@ -27,7 +30,7 @@ from qgis.PyQt.QtWidgets import (
     QWidget,
 )
 
-from sakugis.agent_models import Candidate, GeoAnalysisResult
+from sakugis.agent_models import MAX_CASE_PHOTOS, Candidate, GeoAnalysisResult
 from sakugis.credentials import (
     CredentialError,
     configured_model,
@@ -45,16 +48,16 @@ class AnalysisWorker(QObject):
     completed = pyqtSignal(object)
     failed = pyqtSignal(str)
 
-    def __init__(self, image_path: str, query: str):
+    def __init__(self, image_paths: list[str], query: str):
         super().__init__()
-        self.image_path = image_path
+        self.image_paths = image_paths
         self.query = query
 
     @pyqtSlot()
     def run(self) -> None:
         try:
             result = GeoAgentPipeline().run(
-                image_path=self.image_path,
+                image_paths=self.image_paths,
                 query=self.query,
                 progress=self.progress.emit,
             )
@@ -73,7 +76,7 @@ class AgentPanel(QWidget):
         super().__init__(parent)
         self._thread: Optional[QThread] = None
         self._worker: Optional[AnalysisWorker] = None
-        self._image_path = ""
+        self._image_paths: list[str] = []
         self._last_result: Optional[GeoAnalysisResult] = None
         self._build_ui()
         self._refresh_key_status()
@@ -103,17 +106,27 @@ class AgentPanel(QWidget):
             step_row.addWidget(label, 1)
 
         self.photo_group = QGroupBox(tr("agent.photo"), self)
-        self.image_path_edit = QLineEdit(self)
-        self.image_path_edit.setReadOnly(True)
-        self.image_path_edit.setPlaceholderText(tr("agent.photo_optional"))
-        self.choose_photo_button = QPushButton(tr("agent.choose"), self)
+        self.photo_count_label = QLabel(self)
+        self.photo_count_label.setObjectName("MutedLabel")
+        self.choose_photo_button = QPushButton(tr("agent.add_photos"), self)
         self.choose_photo_button.clicked.connect(self._choose_photo)
-        self.clear_photo_button = QPushButton(tr("agent.clear"), self)
-        self.clear_photo_button.clicked.connect(self._clear_photo)
+        self.remove_photo_button = QPushButton(
+            tr("agent.remove_selected"), self
+        )
+        self.remove_photo_button.clicked.connect(self._remove_selected_photos)
+        self.clear_photo_button = QPushButton(tr("agent.clear_all"), self)
+        self.clear_photo_button.clicked.connect(self._clear_photos)
         photo_row = QHBoxLayout()
-        photo_row.addWidget(self.image_path_edit, 1)
+        photo_row.addWidget(self.photo_count_label, 1)
         photo_row.addWidget(self.choose_photo_button)
+        photo_row.addWidget(self.remove_photo_button)
         photo_row.addWidget(self.clear_photo_button)
+        self.photo_list = QListWidget(self)
+        self.photo_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.photo_list.setMaximumHeight(105)
+        self.photo_list.currentItemChanged.connect(
+            lambda current, _previous: self._show_photo_item(current)
+        )
         self.preview = QLabel(tr("agent.no_photo"), self)
         self.preview.setAlignment(Qt.AlignCenter)
         self.preview.setMinimumHeight(110)
@@ -124,6 +137,7 @@ class AgentPanel(QWidget):
         )
         photo_layout = QVBoxLayout(self.photo_group)
         photo_layout.addLayout(photo_row)
+        photo_layout.addWidget(self.photo_list)
         photo_layout.addWidget(self.preview)
 
         self.query_group = QGroupBox(tr("agent.query"), self)
@@ -166,6 +180,7 @@ class AgentPanel(QWidget):
             [
                 tr("agent.evidence"),
                 tr("agent.content"),
+                tr("agent.photos"),
                 tr("agent.reliability"),
                 tr("agent.source"),
             ]
@@ -179,12 +194,18 @@ class AgentPanel(QWidget):
                 tr("agent.rank"),
                 tr("agent.candidate"),
                 tr("agent.score"),
+                tr("agent.evidence_score"),
+                tr("agent.photo_match"),
+                tr("agent.gis_score"),
                 tr("agent.coverage"),
                 tr("agent.range"),
             ]
         )
         self.candidate_tree.setRootIsDecorated(False)
         self.candidate_tree.setAlternatingRowColors(True)
+        self.candidate_tree.itemSelectionChanged.connect(
+            self._show_candidate_comparison
+        )
         self.candidate_tree.itemDoubleClicked.connect(self._activate_candidate)
 
         self.gis_tree = QTreeWidget(self)
@@ -245,6 +266,7 @@ class AgentPanel(QWidget):
         layout.addLayout(result_actions)
 
         self._refresh_gis_status()
+        self._refresh_photo_list()
         self._set_step_state(0)
 
     def retranslate_ui(self) -> None:
@@ -261,10 +283,11 @@ class AgentPanel(QWidget):
         ):
             label.setText(tr(key))
         self.photo_group.setTitle(tr("agent.photo"))
-        self.image_path_edit.setPlaceholderText(tr("agent.photo_optional"))
-        self.choose_photo_button.setText(tr("agent.choose"))
-        self.clear_photo_button.setText(tr("agent.clear"))
-        if not self._image_path:
+        self.choose_photo_button.setText(tr("agent.add_photos"))
+        self.remove_photo_button.setText(tr("agent.remove_selected"))
+        self.clear_photo_button.setText(tr("agent.clear_all"))
+        self._refresh_photo_list()
+        if not self._image_paths:
             self.preview.setText(tr("agent.no_photo"))
         self.query_group.setTitle(tr("agent.query"))
         self.query_edit.setPlaceholderText(tr("agent.query_hint"))
@@ -277,6 +300,7 @@ class AgentPanel(QWidget):
             [
                 tr("agent.evidence"),
                 tr("agent.content"),
+                tr("agent.photos"),
                 tr("agent.reliability"),
                 tr("agent.source"),
             ]
@@ -286,6 +310,9 @@ class AgentPanel(QWidget):
                 tr("agent.rank"),
                 tr("agent.candidate"),
                 tr("agent.score"),
+                tr("agent.evidence_score"),
+                tr("agent.photo_match"),
+                tr("agent.gis_score"),
                 tr("agent.coverage"),
                 tr("agent.range"),
             ]
@@ -348,16 +375,68 @@ class AgentPanel(QWidget):
         return bool(self._thread and self._thread.isRunning())
 
     def _choose_photo(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
+        paths, _ = QFileDialog.getOpenFileNames(
             self,
             tr("agent.choose_photo_title"),
             str(Path.home()),
             tr("agent.image_filter"),
         )
-        if not path:
+        if not paths:
             return
-        self._image_path = path
-        self.image_path_edit.setText(path)
+        previous_count = len(self._image_paths)
+        for path in paths:
+            if path not in self._image_paths:
+                self._image_paths.append(path)
+            if len(self._image_paths) >= MAX_CASE_PHOTOS:
+                break
+        selected = (
+            self._image_paths[previous_count]
+            if len(self._image_paths) > previous_count
+            else self._image_paths[-1]
+        )
+        self._refresh_photo_list(selected)
+
+    def _refresh_photo_list(self, selected_path: str = "") -> None:
+        if not selected_path and self.photo_list.currentItem() is not None:
+            selected_path = str(
+                self.photo_list.currentItem().data(Qt.UserRole) or ""
+            )
+        self.photo_list.blockSignals(True)
+        self.photo_list.clear()
+        selected_row = -1
+        for index, path in enumerate(self._image_paths, 1):
+            photo_item = QListWidgetItem(f"P{index} · {Path(path).name}")
+            photo_item.setData(Qt.UserRole, path)
+            photo_item.setToolTip(path)
+            self.photo_list.addItem(photo_item)
+            if path == selected_path:
+                selected_row = index - 1
+        self.photo_list.blockSignals(False)
+        self.photo_count_label.setText(
+            tr(
+                "agent.photo_count",
+                count=len(self._image_paths),
+                maximum=MAX_CASE_PHOTOS,
+            )
+        )
+        has_photos = bool(self._image_paths)
+        self.remove_photo_button.setEnabled(has_photos)
+        self.clear_photo_button.setEnabled(has_photos)
+        self.choose_photo_button.setEnabled(
+            len(self._image_paths) < MAX_CASE_PHOTOS
+        )
+        if has_photos:
+            self.photo_list.setCurrentRow(
+                selected_row if selected_row >= 0 else 0
+            )
+        else:
+            self.preview.setPixmap(QPixmap())
+            self.preview.setText(tr("agent.no_photo"))
+
+    def _show_photo_item(self, item) -> None:
+        if item is None:
+            return
+        path = str(item.data(Qt.UserRole) or "")
         pixmap = QPixmap(path)
         if pixmap.isNull():
             self.preview.setText(tr("agent.preview_failed"))
@@ -371,11 +450,23 @@ class AgentPanel(QWidget):
                 )
             )
 
-    def _clear_photo(self) -> None:
-        self._image_path = ""
-        self.image_path_edit.clear()
-        self.preview.setPixmap(QPixmap())
-        self.preview.setText(tr("agent.no_photo"))
+    def _remove_selected_photos(self) -> None:
+        selected = {
+            str(item.data(Qt.UserRole) or "")
+            for item in self.photo_list.selectedItems()
+        }
+        if not selected and self.photo_list.currentItem() is not None:
+            selected.add(
+                str(self.photo_list.currentItem().data(Qt.UserRole) or "")
+            )
+        self._image_paths = [
+            path for path in self._image_paths if path not in selected
+        ]
+        self._refresh_photo_list()
+
+    def _clear_photos(self) -> None:
+        self._image_paths = []
+        self._refresh_photo_list()
 
     def _import_api_key(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -444,7 +535,7 @@ class AgentPanel(QWidget):
         if self.is_busy():
             return
         query = self.query_edit.toPlainText().strip()
-        if not self._image_path and not query:
+        if not self._image_paths and not query:
             QMessageBox.information(
                 self, tr("agent.input_needed"), tr("agent.input_needed_detail")
             )
@@ -472,7 +563,7 @@ class AgentPanel(QWidget):
         self.run_button.setEnabled(False)
 
         self._thread = QThread(self)
-        self._worker = AnalysisWorker(self._image_path, query)
+        self._worker = AnalysisWorker(list(self._image_paths), query)
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)
         self._worker.progress.connect(self._on_progress)
@@ -537,6 +628,7 @@ class AgentPanel(QWidget):
                 [
                     evidence.kind,
                     evidence.value,
+                    ", ".join(evidence.photo_ids) or "—",
                     f"{evidence.reliability * 100:.0f}%",
                     evidence.source,
                 ]
@@ -545,6 +637,7 @@ class AgentPanel(QWidget):
             self.evidence_tree.addTopLevelItem(item)
         self.evidence_tree.resizeColumnToContents(0)
         self.evidence_tree.resizeColumnToContents(2)
+        self.evidence_tree.resizeColumnToContents(3)
 
         for index, candidate in enumerate(result.candidates, 1):
             location = " · ".join(
@@ -557,6 +650,14 @@ class AgentPanel(QWidget):
                     str(index),
                     location,
                     f"{candidate.ranking_score * 100:.0f}/100",
+                    f"{candidate.model_verification_score * 100:.0f}/100",
+                    (
+                        f"{candidate.photo_support_count}/"
+                        f"{candidate.photo_total_count}"
+                        if candidate.photo_total_count > 1
+                        else "—"
+                    ),
+                    f"{candidate.gis_score * 100:.0f}/100",
                     f"{candidate.gis_coverage * 100:.0f}%",
                     f"±{candidate.radius_km:,.0f} km",
                 ]
@@ -565,17 +666,7 @@ class AgentPanel(QWidget):
             components = candidate.ranking_components
             score_detail = ""
             if components:
-                score_detail = "\n" + tr(
-                    "report.score_formula",
-                    retrieval=f"{components.get('retrieval', 0.0) * 100:.1f}",
-                    model=f"{components.get('model', 0.0) * 100:.1f}",
-                    effective_model=f"{components.get('effective_model', 0.0) * 100:.1f}",
-                    confidence=f"{components.get('evidence_confidence', 0.0) * 100:.0f}",
-                    gis=f"{components.get('gis', 0.0) * 100:.1f}",
-                    effective_gis=f"{components.get('effective_gis', 0.0) * 100:.1f}",
-                    coverage=f"{components.get('gis_coverage', 0.0) * 100:.0f}",
-                    penalty=f"{components.get('contradiction_penalty', 0.0) * 100:.1f}",
-                )
+                score_detail = "\n" + self._score_formula(candidate)
             item.setToolTip(
                 1,
                 (
@@ -612,11 +703,21 @@ class AgentPanel(QWidget):
         self.candidate_tree.resizeColumnToContents(2)
         self.candidate_tree.resizeColumnToContents(3)
         self.candidate_tree.resizeColumnToContents(4)
+        self.candidate_tree.resizeColumnToContents(5)
+        self.candidate_tree.resizeColumnToContents(6)
+        self.candidate_tree.resizeColumnToContents(7)
         self.gis_tree.resizeColumnToContents(1)
         self.gis_tree.resizeColumnToContents(2)
         self.gis_tree.resizeColumnToContents(3)
 
-        self.summary_browser.setHtml(
+        self.summary_browser.setHtml(self._overall_summary_html(result))
+        if self.candidate_tree.topLevelItemCount():
+            self.candidate_tree.setCurrentItem(
+                self.candidate_tree.topLevelItem(0)
+            )
+
+    def _overall_summary_html(self, result: GeoAnalysisResult) -> str:
+        return (
             f"<h4>{self._escape(tr('agent.verification_summary'))}</h4>"
             f"<p>{self._escape(result.verification_summary)}</p>"
             f"<p><b>{self._escape(tr('agent.important'))}</b>"
@@ -630,6 +731,70 @@ class AgentPanel(QWidget):
                 )
             )
             + "</p>"
+        )
+
+    def _show_candidate_comparison(self) -> None:
+        if self._last_result is None:
+            return
+        items = self.candidate_tree.selectedItems()
+        if not items:
+            self.summary_browser.setHtml(
+                self._overall_summary_html(self._last_result)
+            )
+            return
+        candidate = items[0].data(0, Qt.UserRole)
+        if not isinstance(candidate, Candidate):
+            return
+        support = ", ".join(candidate.supporting_evidence) or "—"
+        contradictions = "; ".join(candidate.contradictions) or "—"
+        photo_match = (
+            f"{candidate.photo_support_count}/{candidate.photo_total_count}"
+            if candidate.photo_total_count > 1
+            else "—"
+        )
+        self.summary_browser.setHtml(
+            f"<h4>{self._escape(candidate.name)}</h4>"
+            f"<p><b>{self._escape(tr('agent.score'))}:</b> "
+            f"{candidate.ranking_score * 100:.1f}/100 &nbsp; "
+            f"<b>{self._escape(tr('agent.evidence_score'))}:</b> "
+            f"{candidate.model_verification_score * 100:.1f}/100 &nbsp; "
+            f"<b>{self._escape(tr('agent.photo_match'))}:</b> "
+            f"{self._escape(photo_match)} &nbsp; "
+            f"<b>{self._escape(tr('agent.gis_score'))}:</b> "
+            f"{candidate.gis_score * 100:.1f}/100</p>"
+            f"<p><b>{self._escape(tr('report.reverse'))}:</b> "
+            f"{self._escape(candidate.reverse_label or '—')}</p>"
+            f"<p><b>{self._escape(tr('report.rationale'))}:</b> "
+            f"{self._escape(candidate.rationale or '—')}</p>"
+            f"<p><b>{self._escape(tr('report.support'))}:</b> "
+            f"{self._escape(support)}<br>"
+            f"<b>{self._escape(tr('report.contradictions'))}:</b> "
+            f"{self._escape(contradictions)}</p>"
+            f"<p>{self._escape(self._score_formula(candidate))}</p>"
+            f"<p><i>{self._escape(tr('agent.double_click_hint'))}</i></p>"
+        )
+
+    @staticmethod
+    def _score_formula(candidate: Candidate) -> str:
+        components = candidate.ranking_components
+        key = (
+            "report.score_formula_multi"
+            if candidate.photo_total_count > 1
+            else "report.score_formula"
+        )
+        return tr(
+            key,
+            retrieval=f"{components.get('retrieval', 0.0) * 100:.1f}",
+            model=f"{components.get('model', 0.0) * 100:.1f}",
+            effective_model=f"{components.get('effective_model', 0.0) * 100:.1f}",
+            confidence=f"{components.get('evidence_confidence', 0.0) * 100:.0f}",
+            photo=(
+                f"{components.get('effective_photo_consistency', 0.0) * 100:.0f}"
+            ),
+            gis=f"{components.get('gis', 0.0) * 100:.1f}",
+            effective_gis=f"{components.get('effective_gis', 0.0) * 100:.1f}",
+            coverage=f"{components.get('gis_coverage', 0.0) * 100:.0f}",
+            penalty=f"{components.get('contradiction_penalty', 0.0) * 100:.1f}",
         )
 
     def _activate_candidate(self, item: QTreeWidgetItem, _column: int) -> None:

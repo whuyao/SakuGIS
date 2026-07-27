@@ -4,7 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-VERSION="0.1.0"
+VERSION="0.2.0"
 QGIS_APP=""
 OUTPUT_DIR="$PROJECT_DIR/dist"
 SIGN_IDENTITY="-"
@@ -67,6 +67,19 @@ if [[ "$APP_ONLY" == false ]]; then
   mkdir -p "$DMG_STAGE"
 fi
 
+QGIS_EXECUTABLE="$QGIS_APP/Contents/MacOS/QGIS"
+if [[ ! -f "$QGIS_EXECUTABLE" ]]; then
+  echo "QGIS 包中缺少主程序：$QGIS_EXECUTABLE" >&2
+  exit 1
+fi
+
+QGIS_ARCHITECTURES="$(lipo -archs "$QGIS_EXECUTABLE")"
+if [[ " $QGIS_ARCHITECTURES " != *" arm64 "* ]]; then
+  echo "SakuGIS 0.2 仅支持 Apple Silicon；QGIS 运行时缺少 arm64 架构。" >&2
+  echo "检测到：$QGIS_ARCHITECTURES" >&2
+  exit 1
+fi
+
 echo "复制 QGIS 运行时…"
 ditto --norsrc --noqtn "$QGIS_APP" "$APP_PATH"
 
@@ -82,18 +95,7 @@ if [[ ! -f "$PROJECT_DIR/resources/SakuGIS.icns" ]]; then
 fi
 cp -X "$PROJECT_DIR/resources/SakuGIS.icns" "$CONTENTS_DIR/Resources/SakuGIS.icns"
 
-QGIS_EXECUTABLE="$QGIS_APP/Contents/MacOS/QGIS"
-if [[ ! -f "$QGIS_EXECUTABLE" ]]; then
-  echo "QGIS 包中缺少主程序：$QGIS_EXECUTABLE" >&2
-  exit 1
-fi
-
-ARCH_FLAGS=()
-for architecture in $(lipo -archs "$QGIS_EXECUTABLE"); do
-  ARCH_FLAGS+=("-arch" "$architecture")
-done
-
-echo "构建原生启动器：${ARCH_FLAGS[*]}"
+echo "构建 Apple Silicon 启动器：arm64"
 xcrun clang \
   -std=c11 \
   -Os \
@@ -101,7 +103,7 @@ xcrun clang \
   -Wextra \
   -Werror \
   -mmacosx-version-min=13.0 \
-  "${ARCH_FLAGS[@]}" \
+  -arch arm64 \
   "$PROJECT_DIR/launcher/main.c" \
   -o "$CONTENTS_DIR/MacOS/SakuGIS"
 
@@ -118,7 +120,7 @@ cp -X \
   "$CONTENTS_DIR/Resources/sakugis-source/THIRD_PARTY_NOTICES.md"
 
 echo "清理 Finder 扩展属性…"
-xattr -cr "$APP_PATH"
+xattr -crs "$APP_PATH"
 
 echo "签名应用…"
 if [[ "$SIGN_IDENTITY" == "-" ]]; then

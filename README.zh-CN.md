@@ -16,7 +16,8 @@ QGIS 工程保存能力。由 [UrbanComp 团队](https://urbancomp.net)开发。
 - 打开和保存 `.qgz` / `.qgs` 工程
 - 状态栏显示经纬度、比例尺和渲染状态
 - OSM 版权署名与合规的应用 User-Agent
-- Geo Agents 面板：照片/自然语言输入、结构化证据和全球候选位置
+- 多照片 Case 工作区：可联合分析最多 6 张同一地点照片，同时兼容单照片
+  和纯文本查询；证据保留照片来源并合并跨照片重复线索
 - 三阶段千问流水线：证据提取、候选生成、候选核验与重排
 - Agent 2/3 的真实 GIS 核验：OSM Nominatim 地点反查、Overpass 空间约束，
   以及可选的本地 PostGIS 后端
@@ -26,8 +27,8 @@ QGIS 工程保存能力。由 [UrbanComp 团队](https://urbancomp.net)开发。
   的硬冲突会限制候选上限
 - 海岸线等线状要素按最近线段距离连续评分，并支持跨日期变更线查询
 - 将候选点和候选范围作为 QGIS 图层显示并支持双击定位
-- 候选位置图层组可展开；每个候选节点显示综合评分、GIS 分数和覆盖率，
-  单击节点即可定位
+- 候选位置图层组可展开；候选表格与点击对比面板分别显示综合评分、证据
+  复核、照片覆盖、GIS 分数和覆盖率，双击候选即可定位
 - 中文 / English 运行时界面切换（“语言 / Language”菜单）
 - 深色“城市观测台”界面、首次使用引导、地图 HUD 和三阶段进度提示
 - 将完整查询、证据、候选与 GIS 核验导出为中英文 Markdown 报告
@@ -59,6 +60,7 @@ QGIS 工程保存能力。由 [UrbanComp 团队](https://urbancomp.net)开发。
 
 ## 开发环境
 
+- Apple Silicon Mac（M1 或更新芯片）；不支持 Intel Mac
 - macOS 13 或更高版本
 - QGIS 3.40 或更高版本（推荐 3.44 LTR）
 - QGIS 自带的 Python、PyQt 和 PyQGIS

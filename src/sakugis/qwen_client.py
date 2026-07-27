@@ -117,17 +117,27 @@ class QwenClient:
         system_prompt: str,
         user_prompt: str,
         image_path: str = "",
+        image_paths: Optional[List[str]] = None,
         max_tokens: int = 4096,
     ) -> Dict[str, Any]:
         user_content: Any = user_prompt
-        if image_path:
-            user_content = [
-                {
-                    "type": "image_url",
-                    "image_url": {"url": _safe_image_data_url(image_path)},
-                },
-                {"type": "text", "text": user_prompt},
-            ]
+        paths = list(image_paths or ())
+        if image_path and image_path not in paths:
+            paths.insert(0, image_path)
+        paths = list(dict.fromkeys(path for path in paths if path))
+        if paths:
+            user_content = []
+            for index, path in enumerate(paths, 1):
+                user_content.extend(
+                    [
+                        {"type": "text", "text": f"[Photo P{index}]"},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": _safe_image_data_url(path)},
+                        },
+                    ]
+                )
+            user_content.append({"type": "text", "text": user_prompt})
 
         payload = {
             "model": self.model,

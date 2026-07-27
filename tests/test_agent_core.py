@@ -23,9 +23,22 @@ class FakeQwenClient:
     def __init__(self):
         self.calls = []
 
-    def chat_json(self, system_prompt, user_prompt, image_path="", max_tokens=4096):
-        self.calls.append((system_prompt, user_prompt, image_path))
+    def chat_json(
+        self,
+        system_prompt,
+        user_prompt,
+        image_path="",
+        image_paths=None,
+        max_tokens=4096,
+    ):
+        self.calls.append(
+            (system_prompt, user_prompt, image_path, list(image_paths or []))
+        )
         if len(self.calls) == 1:
+            photo_ids = [
+                f"P{index}"
+                for index, _path in enumerate(image_paths or [], 1)
+            ]
             return {
                 "summary": "看见左侧通行和海岸",
                 "evidence": [
@@ -36,6 +49,7 @@ class FakeQwenClient:
                         "reliability": 0.8,
                         "source": "user-query",
                         "scale": "country",
+                        "photo_ids": photo_ids,
                     }
                 ],
             }
@@ -149,6 +163,55 @@ class AgentCoreTests(unittest.TestCase):
         self.assertIn("评分分解", report)
         self.assertIn("收缩后证据复核", report)
         self.assertIn("不应解释为统计概率", report)
+
+    def test_pipeline_jointly_scores_multiple_case_photos(self):
+        client = FakeQwenClient()
+        paths = ["/tmp/case-a.jpg", "/tmp/case-b.jpg"]
+        result = GeoAgentPipeline(client, FakeGISVerifier()).run(
+            image_paths=paths,
+            query="这两张照片拍摄于同一地点",
+        )
+        candidate = result.candidates[0]
+        self.assertEqual(result.image_paths, paths)
+        self.assertEqual(result.image_path, paths[0])
+        self.assertEqual(client.calls[0][3], paths)
+        self.assertEqual(candidate.photo_support_count, 2)
+        self.assertEqual(candidate.photo_total_count, 2)
+        self.assertEqual(candidate.photo_consistency, 1.0)
+        self.assertIn("跨照片覆盖", build_markdown_report(result))
+
+    def test_duplicate_cross_photo_evidence_is_merged_without_double_counting(self):
+        evidence = GeoAgentPipeline._parse_evidence(
+            {
+                "evidence": [
+                    {
+                        "id": "E1",
+                        "kind": "road",
+                        "value": "yellow center line",
+                        "reliability": 0.7,
+                        "photo_ids": ["P1"],
+                    },
+                    {
+                        "id": "E2",
+                        "kind": "road",
+                        "value": "yellow center line",
+                        "reliability": 0.9,
+                        "photo_ids": ["P2"],
+                    },
+                ]
+            },
+            [],
+        )
+        self.assertEqual(len(evidence), 1)
+        self.assertEqual(evidence[0].photo_ids, ["P1", "P2"])
+        self.assertEqual(evidence[0].reliability, 0.9)
+
+    def test_case_photo_count_is_bounded(self):
+        paths = [f"/tmp/photo-{index}.jpg" for index in range(10)]
+        self.assertEqual(
+            GeoAgentPipeline._normalize_image_paths("", paths),
+            paths[:6],
+        )
 
     def test_plans_osm_constraints_from_chinese_and_english(self):
         constraints = plan_spatial_constraints(

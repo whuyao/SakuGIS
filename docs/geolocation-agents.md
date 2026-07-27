@@ -12,7 +12,7 @@ Agent 可调用的工具；最终概率必须由独立验证集校准。
 ## 总体流程
 
 ```text
-照片 / 查询文本
+最多 6 张同地点照片 / 查询文本
        │
        ▼
 Agent 1：证据提取
@@ -37,6 +37,28 @@ Agent 3：证据约束下的验证与重排
        ▼
 GIS 图层：候选点、概率热力图、置信区域、证据与矛盾
 ```
+
+## 多照片 Case
+
+v0.2 将一次定位任务组织成一个 Case。用户可添加最多 6 张默认来自同一
+拍摄地点的照片；每张照片使用稳定的 `P1`、`P2`… 编号。Agent 1 为每条
+证据保存 `photo_ids` 和 `correlation_group`，同一线索跨照片出现时先按
+归一化内容合并，防止重复计分。Agent 2 必须提出能够同时解释多张照片的候选，Agent 3
+则只可引用输入中存在的证据 ID。
+
+多照片排序在原有证据强度与 GIS 覆盖率校正之外加入跨照片覆盖：
+
+```text
+score(c) =
+  0.18 · candidate_retrieval(c)
++ 0.30 · shrink_to_neutral(evidence_review(c), evidence_strength)
++ 0.10 · shrink_to_neutral(photo_coverage(c), evidence_strength)
++ 0.42 · shrink_to_neutral(gis_score(c), gis_coverage)
+- contradiction_penalty(c)
+```
+
+单照片和纯文本查询继续使用原有公式，确保已有工作流和结果可比较。照片
+覆盖是可审计的排序信号，不是统计置信度。
 
 ## Agent 1：多模态证据提取
 
@@ -170,6 +192,7 @@ Agent 3 的 `evidence_score` 明确排除 GIS，避免同一 GIS 结果先进入
 当前实现状态：
 
 - 已完成 Agent 面板、照片与查询输入、macOS 本地元数据读取；
+- 已完成最多 6 张同地点照片的 Case 输入、跨照片证据归因与联合候选评分；
 - 已完成基于千问 `qwen3.7-plus` 的三个顺序 Agent；
 - 已完成结构化证据表、候选点/范围 QGIS 图层和双击定位；
 - 已完成 API Key 的 macOS 钥匙串存储；

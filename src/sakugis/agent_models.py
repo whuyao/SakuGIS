@@ -8,6 +8,9 @@ from typing import Any, Dict, List
 from sakugis.gis_models import GISCheck, SpatialConstraint
 
 
+MAX_CASE_PHOTOS = 6
+
+
 def clamp(value: Any, minimum: float = 0.0, maximum: float = 1.0) -> float:
     try:
         number = float(value)
@@ -30,6 +33,8 @@ class Evidence:
     reliability: float
     source: str
     scale: str = "unknown"
+    photo_ids: List[str] = field(default_factory=list)
+    correlation_group: str = ""
     supports: List[str] = field(default_factory=list)
     contradicts: List[str] = field(default_factory=list)
 
@@ -42,6 +47,10 @@ class Evidence:
             reliability=clamp(value.get("reliability")),
             source=str(value.get("source") or "qwen"),
             scale=str(value.get("scale") or "unknown"),
+            photo_ids=clean_string_list(
+                value.get("photo_ids") or value.get("photos")
+            ),
+            correlation_group=str(value.get("correlation_group") or ""),
             supports=clean_string_list(value.get("supports")),
             contradicts=clean_string_list(value.get("contradicts")),
         )
@@ -67,6 +76,9 @@ class Candidate:
     gis_backend: str = ""
     gis_checks: List[GISCheck] = field(default_factory=list)
     ranking_components: Dict[str, float] = field(default_factory=dict)
+    photo_support_count: int = 0
+    photo_total_count: int = 0
+    photo_consistency: float = 1.0
     supporting_evidence: List[str] = field(default_factory=list)
     contradictions: List[str] = field(default_factory=list)
     rationale: str = ""
@@ -111,6 +123,8 @@ class GeoAnalysisResult:
     verification_summary: str
     caveat: str
     model: str
+    image_paths: List[str] = field(default_factory=list)
+    case_mode: str = "same_location"
     confidence_status: str = "uncalibrated"
     gis_backend: str = ""
     spatial_constraints: List[SpatialConstraint] = field(default_factory=list)

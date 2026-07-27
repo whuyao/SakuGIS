@@ -4,9 +4,16 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from sakugis.agent_models import Candidate, Evidence, GeoAnalysisResult, clamp
+from sakugis.agent_models import (
+    MAX_CASE_PHOTOS,
+    Candidate,
+    Evidence,
+    GeoAnalysisResult,
+    clamp,
+)
 from sakugis.gis_models import CandidateGISResult
 from sakugis.gis_verifier import GISVerifier
 from sakugis.i18n import EN, get_language, tr
@@ -33,12 +40,16 @@ EVIDENCE_SYSTEM_PROMPT = """
       "reliability": 0.0,
       "source": "vision|ocr|user-query",
       "scale": "point|city|region|country|global|context",
+      "photo_ids": ["P1"],
+      "correlation_group": "同一物体或线索组的稳定名称",
       "supports": ["支持的地区或约束"],
       "contradicts": ["排除的地区或约束"]
     }
   ]
 }
-reliability 只表示该证据识别是否可靠，不是地点概率。
+reliability 只表示该证据识别是否可靠，不是地点概率。输入包含多张照片时，
+必须用 P1、P2… 标出每条证据来自哪些照片；同一物体在多张照片中出现时合并
+为一条证据，并列出全部 photo_ids，避免重复计分。
 """.strip()
 
 
@@ -65,6 +76,8 @@ CANDIDATE_SYSTEM_PROMPT = """
 }
 返回 6 至 12 个候选，主动覆盖多个不同国家或地区的合理假设，避免只给同一
 都市圈内的近邻地点。initial_score 是未校准的相对检索分数，不是概率。
+多照片输入默认来自同一拍摄地点。候选必须同时解释尽可能多的照片，不得只依赖
+其中最容易识别的一张；理由中明确说明跨照片的一致性或冲突。
 """.strip()
 
 
@@ -91,7 +104,8 @@ Overpass 或 PostGIS，优先于模型记忆；matched=null 表示服务不可�
 }
 evidence_score 只衡量照片和查询证据对该候选的支持程度，不要把 GIS 分数再次
 计入；SakuGIS 会在模型返回后确定性融合 GIS。该分数不是统计概率；证据不足时
-扩大 radius_km。
+扩大 radius_km。多照片输入时必须检查每张照片；supporting_evidence 应覆盖
+候选真正能够解释的全部照片来源，无法解释的照片应写入 contradictions。
 """.strip()
 
 
@@ -107,28 +121,48 @@ class GeoAgentPipeline:
     def run(
         self,
         image_path: str = "",
+        image_paths: Optional[List[str]] = None,
         query: str = "",
+        case_mode: str = "same_location",
         progress: Optional[ProgressCallback] = None,
     ) -> GeoAnalysisResult:
         cleaned_query = query.strip()
-        if not image_path and not cleaned_query:
+        paths = self._normalize_image_paths(image_path, image_paths)
+        if not paths and not cleaned_query:
             raise ValueError(tr("agent.input_needed_detail"))
 
         self._progress(progress, 5, tr("progress.metadata"))
-        local_evidence = extract_photo_metadata(image_path) if image_path else []
+        local_evidence: List[Evidence] = []
+        for index, path in enumerate(paths, 1):
+            photo_id = f"P{index}"
+            for item in extract_photo_metadata(path):
+                item.evidence_id = f"{photo_id}-{item.evidence_id}"
+                item.photo_ids = [photo_id]
+                item.correlation_group = item.kind
+                local_evidence.append(item)
 
         self._progress(progress, 15, tr("progress.agent1"))
         evidence_payload = self.client.chat_json(
             EVIDENCE_SYSTEM_PROMPT,
-            self._evidence_user_prompt(cleaned_query, local_evidence),
-            image_path=image_path,
+            self._evidence_user_prompt(
+                cleaned_query,
+                local_evidence,
+                paths,
+                case_mode,
+            ),
+            image_paths=paths,
         )
         evidence = self._parse_evidence(evidence_payload, local_evidence)
 
         self._progress(progress, 42, tr("progress.agent2"))
         candidate_payload = self.client.chat_json(
             CANDIDATE_SYSTEM_PROMPT,
-            self._candidate_user_prompt(cleaned_query, evidence),
+            self._candidate_user_prompt(
+                cleaned_query,
+                evidence,
+                photo_count=len(paths),
+                case_mode=case_mode,
+            ),
         )
         candidates = self._parse_candidates(candidate_payload)
         if not candidates:
@@ -151,13 +185,18 @@ class GeoAgentPipeline:
                 cleaned_query, evidence, candidates, gis_results
             ),
         )
-        self._apply_verification(candidates, verification_payload, evidence)
+        self._apply_verification(
+            candidates,
+            verification_payload,
+            evidence,
+            total_photo_count=len(paths),
+        )
         candidates.sort(key=lambda item: item.ranking_score, reverse=True)
 
         self._progress(progress, 100, tr("progress.complete"))
         return GeoAnalysisResult(
             query=cleaned_query,
-            image_path=image_path,
+            image_path=paths[0] if paths else "",
             evidence_summary=str(evidence_payload.get("summary") or ""),
             evidence=evidence,
             candidates=candidates,
@@ -167,6 +206,8 @@ class GeoAgentPipeline:
                 or "结果已通过 OSM/PostGIS 核验，但尚未经过独立地理验证集校准。"
             ),
             model=self.client.model,
+            image_paths=paths,
+            case_mode=case_mode,
             gis_backend=gis_backend,
             spatial_constraints=spatial_constraints,
         )
@@ -179,7 +220,22 @@ class GeoAgentPipeline:
             callback(percent, message)
 
     @staticmethod
-    def _evidence_user_prompt(query: str, local_evidence: List[Evidence]) -> str:
+    def _normalize_image_paths(
+        image_path: str, image_paths: Optional[List[str]]
+    ) -> List[str]:
+        paths = list(image_paths or ())
+        if image_path and image_path not in paths:
+            paths.insert(0, image_path)
+        cleaned = [str(Path(path)) for path in paths if str(path).strip()]
+        return list(dict.fromkeys(cleaned))[:MAX_CASE_PHOTOS]
+
+    @staticmethod
+    def _evidence_user_prompt(
+        query: str,
+        local_evidence: List[Evidence],
+        image_paths: List[str],
+        case_mode: str,
+    ) -> str:
         local = [
             {
                 "id": item.evidence_id,
@@ -187,6 +243,7 @@ class GeoAgentPipeline:
                 "value": item.value,
                 "reliability": item.reliability,
                 "source": item.source,
+                "photo_ids": item.photo_ids,
             }
             for item in local_evidence
         ]
@@ -200,12 +257,27 @@ class GeoAgentPipeline:
             +
             "用户查询："
             + (query or "无，仅分析照片")
+            + "\nCase 模式："
+            + case_mode
+            + "\n照片编号："
+            + json.dumps(
+                [
+                    {"photo_id": f"P{index}", "file": Path(path).name}
+                    for index, path in enumerate(image_paths, 1)
+                ],
+                ensure_ascii=False,
+            )
             + "\n本机读取到的元数据（可能被篡改，只作独立证据）："
             + json.dumps(local, ensure_ascii=False)
         )
 
     @staticmethod
-    def _candidate_user_prompt(query: str, evidence: List[Evidence]) -> str:
+    def _candidate_user_prompt(
+        query: str,
+        evidence: List[Evidence],
+        photo_count: int = 0,
+        case_mode: str = "same_location",
+    ) -> str:
         language_instruction = (
             "Return place names and explanations in English.\n"
             if get_language() == EN
@@ -216,6 +288,7 @@ class GeoAgentPipeline:
             +
             "用户查询："
             + (query or "无")
+            + f"\nCase 模式：{case_mode}；照片数量：{photo_count}"
             + "\n证据："
             + json.dumps(
                 [
@@ -225,6 +298,8 @@ class GeoAgentPipeline:
                         "value": item.value,
                         "reliability": item.reliability,
                         "scale": item.scale,
+                        "photo_ids": item.photo_ids,
+                        "correlation_group": item.correlation_group,
                         "supports": item.supports,
                         "contradicts": item.contradicts,
                     }
@@ -247,6 +322,8 @@ class GeoAgentPipeline:
                 "kind": item.kind,
                 "value": item.value,
                 "reliability": item.reliability,
+                "photo_ids": item.photo_ids,
+                "correlation_group": item.correlation_group,
                 "supports": item.supports,
                 "contradicts": item.contradicts,
             }
@@ -318,6 +395,11 @@ class GeoAgentPipeline:
                 existing.contradicts = list(
                     dict.fromkeys(existing.contradicts + item.contradicts)
                 )
+                existing.photo_ids = list(
+                    dict.fromkeys(existing.photo_ids + item.photo_ids)
+                )
+                if not existing.correlation_group:
+                    existing.correlation_group = item.correlation_group
                 continue
             if not item.evidence_id or item.evidence_id in used_ids:
                 item.evidence_id = f"E{len(merged) + 1}"
@@ -346,6 +428,7 @@ class GeoAgentPipeline:
         candidates: List[Candidate],
         payload: Dict[str, Any],
         evidence: List[Evidence],
+        total_photo_count: int = 0,
     ) -> None:
         raw = payload.get("candidates")
         verifications = {
@@ -381,4 +464,8 @@ class GeoAgentPipeline:
                 ]
             if verification.get("rationale"):
                 candidate.rationale = str(verification["rationale"])
-            fuse_candidate_score(candidate, evidence)
+            fuse_candidate_score(
+                candidate,
+                evidence,
+                total_photo_count=total_photo_count,
+            )

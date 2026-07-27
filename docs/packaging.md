@@ -1,5 +1,9 @@
 # macOS 打包与发布
 
+SakuGIS 0.2 起仅发布 Apple Silicon（arm64）版本，不再支持 Intel Mac。
+打包脚本会拒绝不包含 arm64 架构的 QGIS 运行时，并始终以 `-arch arm64`
+编译原生启动器。
+
 ## 本地测试包
 
 `scripts/package-macos.sh` 默认使用 ad-hoc 签名，适合当前 Mac 本机验证：
@@ -27,13 +31,13 @@
 
 ```bash
 xcrun notarytool submit \
-  ./dist/SakuGIS-0.1.0.dmg \
+  ./dist/SakuGIS-0.2.0.dmg \
   --keychain-profile SakuGISNotary \
   --wait
 
-xcrun stapler staple ./dist/SakuGIS-0.1.0.dmg
+xcrun stapler staple ./dist/SakuGIS-0.2.0.dmg
 spctl --assess --type open --context context:primary-signature \
-  --verbose=4 ./dist/SakuGIS-0.1.0.dmg
+  --verbose=4 ./dist/SakuGIS-0.2.0.dmg
 ```
 
 Developer ID 私钥、Apple ID 密码和 API Key 不应提交到仓库。
@@ -47,4 +51,3 @@ Developer ID 私钥、Apple ID 密码和 API Key 不应提交到仓库。
 3. 验证本地矢量、栅格、XYZ 底图和工程读写。
 4. 重新检查第三方许可证和应用体积。
 5. 重新签名、公证并验证 Gatekeeper。
-

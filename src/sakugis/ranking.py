@@ -72,7 +72,9 @@ def evidence_confidence(
 
 
 def fuse_candidate_score(
-    candidate: Candidate, evidence: Sequence[Evidence]
+    candidate: Candidate,
+    evidence: Sequence[Evidence],
+    total_photo_count: int = 0,
 ) -> float:
     """Fuse two model stages with GIS while shrinking low-coverage signals."""
 
@@ -90,12 +92,38 @@ def fuse_candidate_score(
     contradiction_penalty = min(
         0.10, 0.025 * len(candidate.contradictions)
     ) * max(0.35, confidence)
-    score = (
-        0.20 * candidate.initial_score
-        + 0.35 * effective_model
-        + 0.45 * effective_gis
-        - contradiction_penalty
-    )
+    supported_evidence_ids = set(candidate.supporting_evidence)
+    supported_photo_ids = {
+        photo_id
+        for item in evidence
+        if item.evidence_id in supported_evidence_ids
+        for photo_id in item.photo_ids
+    }
+    candidate.photo_total_count = max(0, int(total_photo_count))
+    candidate.photo_support_count = len(supported_photo_ids)
+    if candidate.photo_total_count <= 1:
+        candidate.photo_consistency = 1.0
+        effective_photo_consistency = 1.0
+        score = (
+            0.20 * candidate.initial_score
+            + 0.35 * effective_model
+            + 0.45 * effective_gis
+            - contradiction_penalty
+        )
+    else:
+        candidate.photo_consistency = clamp(
+            candidate.photo_support_count / candidate.photo_total_count
+        )
+        effective_photo_consistency = (
+            0.5 + confidence * (candidate.photo_consistency - 0.5)
+        )
+        score = (
+            0.18 * candidate.initial_score
+            + 0.30 * effective_model
+            + 0.10 * effective_photo_consistency
+            + 0.42 * effective_gis
+            - contradiction_penalty
+        )
 
     country_mismatch = any(
         check.check_id == "reverse_country" and check.matched is False
@@ -137,6 +165,10 @@ def fuse_candidate_score(
         "gis": clamp(candidate.gis_score),
         "gis_coverage": clamp(candidate.gis_coverage),
         "effective_gis": clamp(effective_gis),
+        "photo_consistency": candidate.photo_consistency,
+        "effective_photo_consistency": effective_photo_consistency,
+        "photo_support_count": float(candidate.photo_support_count),
+        "photo_total_count": float(candidate.photo_total_count),
         "contradiction_penalty": contradiction_penalty,
         "required_mismatches": float(required_spatial_mismatches),
         "required_unknowns": float(required_unknowns),
