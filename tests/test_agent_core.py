@@ -1,3 +1,5 @@
+import json
+import re
 import tempfile
 import unittest
 from datetime import datetime, timezone
@@ -11,7 +13,17 @@ from sakugis.gis_verifier import GISVerifier
 from sakugis.i18n import set_language, tr
 from sakugis.osm_services import OSMServices, _distance_to_feature_km
 from sakugis.postgis_provider import PostGISConfig, PostGISError
-from sakugis.qwen_client import extract_json_object
+from sakugis.prompt_budget import (
+    CANDIDATE_PROMPT_CHAR_LIMIT,
+    EVIDENCE_PROMPT_CHAR_LIMIT,
+    VERIFY_PROMPT_CHAR_LIMIT,
+)
+from sakugis.qwen_client import (
+    QwenApiError,
+    QwenClient,
+    _image_dimension_for_count,
+    extract_json_object,
+)
 from sakugis.reporting import build_markdown_report
 from sakugis.ranking import fuse_candidate_score, select_diverse_candidates
 from sakugis.spatial_constraints import plan_spatial_constraints
@@ -32,13 +44,16 @@ class FakeQwenClient:
         max_tokens=4096,
     ):
         self.calls.append(
-            (system_prompt, user_prompt, image_path, list(image_paths or []))
+            (
+                system_prompt,
+                user_prompt,
+                image_path,
+                list(image_paths or []),
+                max_tokens,
+            )
         )
-        if len(self.calls) == 1:
-            photo_ids = [
-                f"P{index}"
-                for index, _path in enumerate(image_paths or [], 1)
-            ]
+        if "Agent 1" in system_prompt:
+            photo_ids = re.findall(r'"photo_id":"(P\d+)"', user_prompt)
             return {
                 "summary": "看见左侧通行和海岸",
                 "evidence": [
@@ -53,7 +68,7 @@ class FakeQwenClient:
                     }
                 ],
             }
-        if len(self.calls) == 2:
+        if "Agent 2" in system_prompt:
             return {
                 "candidates": [
                     {
@@ -75,6 +90,7 @@ class FakeQwenClient:
                     },
                 ]
             }
+        support_id = "P1-E1" if "P1-E1" in user_prompt else "E1"
         return {
             "summary": "奥克兰最符合当前证据",
             "caveat": "尚未检查参考影像",
@@ -83,12 +99,27 @@ class FakeQwenClient:
                     "id": "C1",
                     "evidence_score": 0.9,
                     "radius_km": 50,
-                    "supporting_evidence": ["E1"],
+                    "supporting_evidence": [support_id],
                     "contradictions": [],
                     "rationale": "左侧通行且临海",
                 }
             ],
         }
+
+
+class RecordingQwenClient(QwenClient):
+    def __init__(self, max_prompt_chars=48000):
+        super().__init__(
+            api_key="test-key",
+            base_url="https://example.invalid",
+            model="fake-qwen",
+            max_prompt_chars=max_prompt_chars,
+        )
+        self.payloads = []
+
+    def _post(self, route, payload):
+        self.payloads.append((route, payload))
+        return {"choices": [{"message": {"content": '{"ok":true}'}}]}
 
 
 class FakeGISVerifier:
@@ -143,6 +174,10 @@ class AgentCoreTests(unittest.TestCase):
             query="寻找左侧通行且临海的城市"
         )
         self.assertEqual(len(client.calls), 3)
+        self.assertEqual(
+            [call[4] for call in client.calls],
+            [3072, 3072, 4096],
+        )
         self.assertEqual(len(result.candidates), 1)
         self.assertEqual(result.candidates[0].name, "奥克兰")
         self.assertAlmostEqual(result.candidates[0].ranking_score, 0.7478)
@@ -174,11 +209,162 @@ class AgentCoreTests(unittest.TestCase):
         candidate = result.candidates[0]
         self.assertEqual(result.image_paths, paths)
         self.assertEqual(result.image_path, paths[0])
-        self.assertEqual(client.calls[0][3], paths)
+        self.assertEqual(len(client.calls), 4)
+        self.assertEqual(client.calls[0][3], [paths[0]])
+        self.assertEqual(client.calls[1][3], [paths[1]])
+        self.assertTrue(all(len(call[3]) <= 1 for call in client.calls))
+        self.assertEqual(
+            [call[4] for call in client.calls],
+            [3072, 3072, 3072, 4096],
+        )
         self.assertEqual(candidate.photo_support_count, 2)
         self.assertEqual(candidate.photo_total_count, 2)
         self.assertEqual(candidate.photo_consistency, 1.0)
         self.assertIn("跨照片覆盖", build_markdown_report(result))
+
+    def test_qwen_requests_are_stateless_between_location_runs(self):
+        client = RecordingQwenClient()
+        client.chat_json("system", "FIRST_LOCATION_ONLY")
+        client.chat_json("system", "SECOND_LOCATION_ONLY")
+
+        self.assertEqual(len(client.payloads), 2)
+        first = client.payloads[0][1]
+        second = client.payloads[1][1]
+        self.assertEqual(len(first["messages"]), 2)
+        self.assertEqual(len(second["messages"]), 2)
+        self.assertNotIn(
+            "FIRST_LOCATION_ONLY",
+            json.dumps(second, ensure_ascii=False),
+        )
+        self.assertEqual(client.last_request_stats["message_count"], 2)
+        self.assertEqual(client.last_request_stats["image_count"], 0)
+
+    def test_qwen_rejects_oversize_prompt_before_network_request(self):
+        client = RecordingQwenClient(max_prompt_chars=128)
+        with self.assertRaises(QwenApiError):
+            client.chat_json("s" * 80, "u" * 80)
+        self.assertEqual(client.payloads, [])
+
+    def test_multi_image_resize_policy_is_defensive(self):
+        self.assertEqual(_image_dimension_for_count(1), 2048)
+        self.assertEqual(_image_dimension_for_count(2), 1792)
+        self.assertEqual(_image_dimension_for_count(4), 1536)
+        self.assertEqual(_image_dimension_for_count(6), 1280)
+
+    def test_agent_prompts_remain_bounded_and_structured(self):
+        long_text = "全球定位线索" * 1000
+        evidence = [
+            Evidence(
+                f"E{index}",
+                "visual-clue-" + long_text,
+                long_text,
+                0.9,
+                "vision",
+                "region",
+                [f"P{index % 6 + 1}"],
+                long_text,
+                [long_text] * 8,
+                [long_text] * 8,
+            )
+            for index in range(1, 21)
+        ]
+        candidates = [
+            Candidate.from_dict(
+                {
+                    "id": f"C{index}",
+                    "name": long_text,
+                    "country": long_text,
+                    "region": long_text,
+                    "latitude": index,
+                    "longitude": index,
+                    "initial_score": 0.8,
+                    "radius_km": 100,
+                    "evidence_ids": [f"E{index}"],
+                    "rationale": long_text,
+                },
+                index - 1,
+            )
+            for index in range(1, 9)
+        ]
+        gis_results = {}
+        for candidate in candidates:
+            checks = [
+                GISCheck(
+                    f"check-{index}",
+                    long_text,
+                    long_text,
+                    index % 3 == 0,
+                    long_text,
+                    detail=long_text,
+                    required=index < 3,
+                )
+                for index in range(30)
+            ]
+            gis_results[candidate.candidate_id] = CandidateGISResult(
+                candidate_id=candidate.candidate_id,
+                reverse=ReversePlace(
+                    display_name=long_text,
+                    country=long_text,
+                    region=long_text,
+                    locality=long_text,
+                    source=long_text,
+                    aliases=[long_text] * 12,
+                ),
+                checks=checks,
+                gis_score=0.8,
+                coverage=0.75,
+                verified=True,
+                backend=long_text,
+            )
+
+        evidence_prompt = GeoAgentPipeline._evidence_user_prompt(
+            long_text,
+            evidence,
+            ["/tmp/very-long-name.jpg"],
+            "same_location",
+        )
+        candidate_prompt = GeoAgentPipeline._candidate_user_prompt(
+            long_text,
+            evidence,
+            photo_count=6,
+        )
+        verify_prompt = GeoAgentPipeline._verify_user_prompt(
+            long_text,
+            evidence,
+            candidates,
+            gis_results,
+        )
+
+        self.assertLessEqual(
+            len(evidence_prompt), EVIDENCE_PROMPT_CHAR_LIMIT
+        )
+        self.assertLessEqual(
+            len(candidate_prompt), CANDIDATE_PROMPT_CHAR_LIMIT
+        )
+        self.assertLessEqual(len(verify_prompt), VERIFY_PROMPT_CHAR_LIMIT)
+        self.assertIn("[truncated]", evidence_prompt)
+        self.assertIn("[truncated]", candidate_prompt)
+        self.assertIn("[truncated]", verify_prompt)
+        json.loads(candidate_prompt.split("\n证据：", 1)[1])
+        verification_tail = verify_prompt.split("\n证据：", 1)[1]
+        evidence_json, candidate_json = verification_tail.split(
+            "\n候选：", 1
+        )
+        json.loads(evidence_json)
+        compact_candidates = json.loads(candidate_json)
+        self.assertEqual(len(compact_candidates), 8)
+        self.assertTrue(
+            all(
+                len(item["gis_verification"]["checks"]) <= 8
+                for item in compact_candidates
+            )
+        )
+        self.assertTrue(
+            all(
+                item["gis_verification"]["checks_total"] == 30
+                for item in compact_candidates
+            )
+        )
 
     def test_duplicate_cross_photo_evidence_is_merged_without_double_counting(self):
         evidence = GeoAgentPipeline._parse_evidence(

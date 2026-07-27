@@ -127,7 +127,7 @@ def run() -> int:
     )
     settings.setValue(
         "qgis/networkAndProxy/userAgent",
-        "SakuGIS/0.2.1 (+https://urbancomp.net)",
+        "SakuGIS/0.2.2 (+https://urbancomp.net)",
     )
 
     _install_exception_hook()

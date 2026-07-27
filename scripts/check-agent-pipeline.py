@@ -14,11 +14,18 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("query")
     parser.add_argument("--language", choices=("zh_CN", "en"), default="zh_CN")
+    parser.add_argument(
+        "--image",
+        action="append",
+        default=[],
+        help="Case photo path; repeat for a multi-photo smoke test",
+    )
     parser.add_argument("--report")
     arguments = parser.parse_args()
     set_language(arguments.language)
 
     result = GeoAgentPipeline().run(
+        image_paths=arguments.image,
         query=arguments.query,
         progress=lambda percent, message: print(f"[{percent:3d}%] {message}"),
     )

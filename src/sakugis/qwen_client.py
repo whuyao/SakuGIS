@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import mimetypes
+import os
 import subprocess
 import tempfile
 import urllib.error
@@ -18,6 +19,7 @@ from sakugis.credentials import (
     get_api_key,
 )
 from sakugis.i18n import tr
+from sakugis.prompt_budget import QWEN_TOTAL_PROMPT_CHAR_LIMIT
 
 
 class QwenApiError(RuntimeError):
@@ -49,7 +51,7 @@ def extract_json_object(text: str) -> Dict[str, Any]:
     return value
 
 
-def _safe_image_data_url(path: str) -> str:
+def _safe_image_data_url(path: str, max_dimension: int = 2048) -> str:
     """Resize input to a predictable JPEG before Base64 upload."""
 
     source = Path(path)
@@ -65,7 +67,7 @@ def _safe_image_data_url(path: str) -> str:
                 [
                     "/usr/bin/sips",
                     "-Z",
-                    "2048",
+                    str(max_dimension),
                     "--setProperty",
                     "format",
                     "jpeg",
@@ -106,11 +108,18 @@ class QwenClient:
         base_url: Optional[str] = None,
         model: Optional[str] = None,
         timeout: int = 120,
+        max_prompt_chars: Optional[int] = None,
     ):
         self.api_key = api_key or get_api_key()
         self.base_url = (base_url or configured_base_url()).rstrip("/")
         self.model = model or configured_model()
         self.timeout = timeout
+        self.max_prompt_chars = (
+            max(128, int(max_prompt_chars))
+            if max_prompt_chars is not None
+            else _configured_prompt_char_limit()
+        )
+        self.last_request_stats: Dict[str, int] = {}
 
     def chat_json(
         self,
@@ -120,20 +129,37 @@ class QwenClient:
         image_paths: Optional[List[str]] = None,
         max_tokens: int = 4096,
     ) -> Dict[str, Any]:
+        prompt_chars = len(system_prompt) + len(user_prompt)
+        if prompt_chars > self.max_prompt_chars:
+            raise QwenApiError(
+                tr(
+                    "error.prompt_too_long",
+                    actual=prompt_chars,
+                    maximum=self.max_prompt_chars,
+                )
+            )
         user_content: Any = user_prompt
         paths = list(image_paths or ())
         if image_path and image_path not in paths:
             paths.insert(0, image_path)
         paths = list(dict.fromkeys(path for path in paths if path))
+        image_dimension = _image_dimension_for_count(len(paths))
         if paths:
             user_content = []
             for index, path in enumerate(paths, 1):
                 user_content.extend(
                     [
-                        {"type": "text", "text": f"[Photo P{index}]"},
+                        {
+                            "type": "text",
+                            "text": f"[Attached image {index}]",
+                        },
                         {
                             "type": "image_url",
-                            "image_url": {"url": _safe_image_data_url(path)},
+                            "image_url": {
+                                "url": _safe_image_data_url(
+                                    path, image_dimension
+                                )
+                            },
                         },
                     ]
                 )
@@ -149,6 +175,13 @@ class QwenClient:
             "max_tokens": max_tokens,
             "enable_thinking": False,
             "response_format": {"type": "json_object"},
+        }
+        self.last_request_stats = {
+            "prompt_chars": prompt_chars,
+            "image_count": len(paths),
+            "image_max_dimension": image_dimension if paths else 0,
+            "max_output_tokens": int(max_tokens),
+            "message_count": 2,
         }
         response = self._post("/chat/completions", payload)
         try:
@@ -189,10 +222,19 @@ class QwenClient:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
                 payload = json.load(response)
         except urllib.error.HTTPError as exc:
+            error_body = ""
+            try:
+                error_body = exc.read(4096).decode("utf-8", errors="ignore")
+            except (AttributeError, OSError):
+                pass
             if exc.code == 401:
                 message = tr("error.api_unauthorized")
             elif exc.code == 429:
                 message = tr("error.api_rate_limit")
+            elif exc.code in {400, 413, 422} and _is_context_error(
+                error_body
+            ):
+                message = tr("error.api_context_length")
             else:
                 message = tr("error.api_http", code=exc.code)
             raise QwenApiError(message) from exc
@@ -205,3 +247,39 @@ class QwenClient:
         if not isinstance(payload, dict):
             raise QwenApiError(tr("error.api_invalid_response"))
         return payload
+
+
+def _configured_prompt_char_limit() -> int:
+    raw = os.environ.get("SAKUGIS_QWEN_MAX_PROMPT_CHARS", "")
+    try:
+        configured = int(raw) if raw else QWEN_TOTAL_PROMPT_CHAR_LIMIT
+    except ValueError:
+        configured = QWEN_TOTAL_PROMPT_CHAR_LIMIT
+    return max(8000, min(200000, configured))
+
+
+def _image_dimension_for_count(image_count: int) -> int:
+    if image_count <= 1:
+        return 2048
+    if image_count == 2:
+        return 1792
+    if image_count <= 4:
+        return 1536
+    return 1280
+
+
+def _is_context_error(message: str) -> bool:
+    normalized = message.casefold()
+    return any(
+        marker in normalized
+        for marker in (
+            "context length",
+            "maximum context",
+            "max context",
+            "too many tokens",
+            "prompt is too long",
+            "input is too long",
+            "上下文",
+            "令牌过多",
+        )
+    )

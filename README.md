@@ -23,6 +23,8 @@ Developed by the [UrbanComp team](https://urbancomp.net).
 - Wuhan, Hubei is the default startup map view.
 - Multi-photo Case workspace: jointly analyze up to six photos captured at
   the same location, while retaining single-photo and text-only queries.
+  Each photo is sent in its own vision request, then evidence is merged
+  locally to avoid multi-image context failures.
 - Three-stage agent pipeline:
   1. extract visual and contextual evidence;
   2. generate geographically diverse candidate locations;
@@ -99,12 +101,20 @@ The key is stored under the Keychain service
 SAKUGIS_QWEN_API_KEY=your-key \
 SAKUGIS_QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1 \
 SAKUGIS_QWEN_MODEL=qwen3.7-plus \
+SAKUGIS_QWEN_MAX_PROMPT_CHARS=48000 \
 ./scripts/run-dev.sh
 ```
 
 The default base URL is Alibaba Cloud's public Beijing OpenAI-compatible
 endpoint. A workspace-specific endpoint can be provided at runtime through
 `SAKUGIS_QWEN_BASE_URL`; it is intentionally not stored in this repository.
+
+Qwen calls are stateless: each stage sends only one system message and the
+current Case input, never previous location runs. Agent 1 sends one resized
+photo per request; Agents 2 and 3 receive compact structured JSON. Prompt
+budgets are 12,000 / 18,000 / 32,000 characters by stage, with a final
+48,000-character client guard. The final guard can be adjusted for a
+different model using `SAKUGIS_QWEN_MAX_PROMPT_CHARS`.
 
 Do not commit keys, profile CSV files, PostGIS DSNs, `.env` files, exported
 query data, or private photographs. See [SECURITY.md](SECURITY.md).

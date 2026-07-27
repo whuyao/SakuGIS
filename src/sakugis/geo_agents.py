@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -18,12 +17,24 @@ from sakugis.gis_models import CandidateGISResult
 from sakugis.gis_verifier import GISVerifier
 from sakugis.i18n import EN, get_language, tr
 from sakugis.photo_metadata import extract_photo_metadata
+from sakugis.prompt_budget import (
+    CANDIDATE_PROMPT_CHAR_LIMIT,
+    EVIDENCE_PROMPT_CHAR_LIMIT,
+    VERIFY_PROMPT_CHAR_LIMIT,
+    build_bounded_prompt,
+    compact_json,
+    compact_text_list,
+    shorten_text,
+)
 from sakugis.qwen_client import QwenClient
 from sakugis.ranking import fuse_candidate_score, select_diverse_candidates
 from sakugis.spatial_constraints import plan_spatial_constraints
 
 
 ProgressCallback = Callable[[int, str], None]
+EVIDENCE_MAX_OUTPUT_TOKENS = 3072
+CANDIDATE_MAX_OUTPUT_TOKENS = 3072
+VERIFY_MAX_OUTPUT_TOKENS = 4096
 
 
 EVIDENCE_SYSTEM_PROMPT = """
@@ -47,9 +58,9 @@ EVIDENCE_SYSTEM_PROMPT = """
     }
   ]
 }
-reliability 只表示该证据识别是否可靠，不是地点概率。输入包含多张照片时，
-必须用 P1、P2… 标出每条证据来自哪些照片；同一物体在多张照片中出现时合并
-为一条证据，并列出全部 photo_ids，避免重复计分。
+reliability 只表示该证据识别是否可靠，不是地点概率。提示中会给出当前照片
+的稳定编号 P1、P2…，每条证据必须使用该编号；跨照片证据由 SakuGIS 在本机
+合并，避免重复计分。每张照片最多返回 8 条最有区分度的证据。
 """.strip()
 
 
@@ -106,6 +117,8 @@ evidence_score 只衡量照片和查询证据对该候选的支持程度，不�
 计入；SakuGIS 会在模型返回后确定性融合 GIS。该分数不是统计概率；证据不足时
 扩大 radius_km。多照片输入时必须检查每张照片；supporting_evidence 应覆盖
 候选真正能够解释的全部照片来源，无法解释的照片应写入 contradictions。
+提示中的 GIS 检查可能经过长度压缩，但 gis_score 和 coverage 已由 SakuGIS
+使用完整检查集确定；不得根据缺省的明细自行补充事实。
 """.strip()
 
 
@@ -142,17 +155,85 @@ class GeoAgentPipeline:
                 local_evidence.append(item)
 
         self._progress(progress, 15, tr("progress.agent1"))
-        evidence_payload = self.client.chat_json(
-            EVIDENCE_SYSTEM_PROMPT,
-            self._evidence_user_prompt(
-                cleaned_query,
-                local_evidence,
-                paths,
-                case_mode,
-            ),
-            image_paths=paths,
-        )
-        evidence = self._parse_evidence(evidence_payload, local_evidence)
+        if paths:
+            remote_evidence: List[Dict[str, Any]] = []
+            evidence_summaries: List[str] = []
+            for index, path in enumerate(paths, 1):
+                photo_id = f"P{index}"
+                local_for_photo = [
+                    item
+                    for item in local_evidence
+                    if photo_id in item.photo_ids
+                ]
+                evidence_payload = self.client.chat_json(
+                    EVIDENCE_SYSTEM_PROMPT,
+                    self._evidence_user_prompt(
+                        cleaned_query,
+                        local_for_photo,
+                        [path],
+                        case_mode,
+                        photo_ids=[photo_id],
+                    ),
+                    image_paths=[path],
+                    max_tokens=EVIDENCE_MAX_OUTPUT_TOKENS,
+                )
+                summary = shorten_text(
+                    evidence_payload.get("summary"), 320
+                )
+                if summary:
+                    evidence_summaries.append(f"[{photo_id}] {summary}")
+                raw = evidence_payload.get("evidence")
+                for remote_index, item in enumerate(
+                    raw if isinstance(raw, list) else []
+                ):
+                    if remote_index >= 8 or not isinstance(item, dict):
+                        break
+                    compacted = dict(item)
+                    compacted["id"] = (
+                        f"{photo_id}-"
+                        f"{shorten_text(compacted.get('id') or remote_index + 1, 16)}"
+                    )
+                    compacted["photo_ids"] = [photo_id]
+                    remote_evidence.append(compacted)
+                self._progress(
+                    progress,
+                    15 + int(index / len(paths) * 24),
+                    tr(
+                        "progress.agent1_photo",
+                        current=index,
+                        total=len(paths),
+                    ),
+                )
+            combined_evidence_payload = {
+                "evidence": remote_evidence,
+            }
+            evidence = self._parse_evidence(
+                combined_evidence_payload, local_evidence, limit=60
+            )
+            evidence = self._select_case_evidence(
+                evidence,
+                [f"P{index}" for index in range(1, len(paths) + 1)],
+            )
+            evidence_summary = shorten_text(
+                "；".join(evidence_summaries), 1200
+            )
+        else:
+            evidence_payload = self.client.chat_json(
+                EVIDENCE_SYSTEM_PROMPT,
+                self._evidence_user_prompt(
+                    cleaned_query,
+                    local_evidence,
+                    [],
+                    case_mode,
+                ),
+                max_tokens=EVIDENCE_MAX_OUTPUT_TOKENS,
+            )
+            evidence = self._parse_evidence(
+                evidence_payload, local_evidence
+            )
+            evidence_summary = shorten_text(
+                evidence_payload.get("summary"), 1200
+            )
 
         self._progress(progress, 42, tr("progress.agent2"))
         candidate_payload = self.client.chat_json(
@@ -163,6 +244,7 @@ class GeoAgentPipeline:
                 photo_count=len(paths),
                 case_mode=case_mode,
             ),
+            max_tokens=CANDIDATE_MAX_OUTPUT_TOKENS,
         )
         candidates = self._parse_candidates(candidate_payload)
         if not candidates:
@@ -184,6 +266,7 @@ class GeoAgentPipeline:
             self._verify_user_prompt(
                 cleaned_query, evidence, candidates, gis_results
             ),
+            max_tokens=VERIFY_MAX_OUTPUT_TOKENS,
         )
         self._apply_verification(
             candidates,
@@ -197,7 +280,7 @@ class GeoAgentPipeline:
         return GeoAnalysisResult(
             query=cleaned_query,
             image_path=paths[0] if paths else "",
-            evidence_summary=str(evidence_payload.get("summary") or ""),
+            evidence_summary=evidence_summary,
             evidence=evidence,
             candidates=candidates,
             verification_summary=str(verification_payload.get("summary") or ""),
@@ -235,40 +318,98 @@ class GeoAgentPipeline:
         local_evidence: List[Evidence],
         image_paths: List[str],
         case_mode: str,
+        photo_ids: Optional[List[str]] = None,
     ) -> str:
         local = [
             {
-                "id": item.evidence_id,
-                "kind": item.kind,
-                "value": item.value,
+                "id": shorten_text(item.evidence_id, 24),
+                "kind": shorten_text(item.kind, 48),
+                "value": shorten_text(item.value, 320),
                 "reliability": item.reliability,
-                "source": item.source,
-                "photo_ids": item.photo_ids,
+                "source": shorten_text(item.source, 80),
+                "photo_ids": compact_text_list(
+                    item.photo_ids, max_items=6, max_chars=12
+                ),
             }
-            for item in local_evidence
+            for item in local_evidence[:20]
         ]
         language_instruction = (
             "Return human-readable text in English.\n"
             if get_language() == EN
             else "人类可读文本请使用中文。\n"
         )
-        return (
-            language_instruction
-            +
-            "用户查询："
-            + (query or "无，仅分析照片")
-            + "\nCase 模式："
-            + case_mode
+        suffix = (
+            "\nCase 模式："
+            + shorten_text(case_mode, 32)
             + "\n照片编号："
-            + json.dumps(
+            + compact_json(
                 [
-                    {"photo_id": f"P{index}", "file": Path(path).name}
+                    {
+                        "photo_id": (
+                            photo_ids[index - 1]
+                            if photo_ids and index <= len(photo_ids)
+                            else f"P{index}"
+                        ),
+                        "file": shorten_text(Path(path).name, 128),
+                    }
                     for index, path in enumerate(image_paths, 1)
-                ],
-                ensure_ascii=False,
+                ]
             )
-            + "\n本机读取到的元数据（可能被篡改，只作独立证据）："
-            + json.dumps(local, ensure_ascii=False)
+            + "\n本机元数据（可能被篡改，仅作独立证据）："
+            + compact_json(local)
+        )
+        return build_bounded_prompt(
+            language_instruction + "用户查询：",
+            query or "无，仅分析照片",
+            suffix,
+            EVIDENCE_PROMPT_CHAR_LIMIT,
+        )
+
+    @staticmethod
+    def _select_case_evidence(
+        evidence: List[Evidence],
+        photo_ids: List[str],
+        limit: int = 20,
+    ) -> List[Evidence]:
+        if len(evidence) <= limit:
+            return evidence
+        selected_ids = set()
+        selected: List[Evidence] = []
+        for photo_id in photo_ids:
+            matches = sorted(
+                (
+                    item
+                    for item in evidence
+                    if photo_id in item.photo_ids
+                ),
+                key=lambda item: item.reliability,
+                reverse=True,
+            )
+            for item in matches[:2]:
+                if item.evidence_id not in selected_ids:
+                    selected.append(item)
+                    selected_ids.add(item.evidence_id)
+        remaining = sorted(
+            (
+                item
+                for item in evidence
+                if item.evidence_id not in selected_ids
+            ),
+            key=lambda item: (
+                item.source == "local-metadata",
+                len(item.photo_ids),
+                item.reliability,
+            ),
+            reverse=True,
+        )
+        selected.extend(remaining[: max(0, limit - len(selected))])
+        order = {
+            item.evidence_id: index
+            for index, item in enumerate(evidence)
+        }
+        return sorted(
+            selected[:limit],
+            key=lambda item: order.get(item.evidence_id, len(order)),
         )
 
     @staticmethod
@@ -283,30 +424,21 @@ class GeoAgentPipeline:
             if get_language() == EN
             else "地点名称和解释请使用中文，可保留英文别名。\n"
         )
-        return (
-            language_instruction
-            +
-            "用户查询："
-            + (query or "无")
-            + f"\nCase 模式：{case_mode}；照片数量：{photo_count}"
+        evidence_payload = [
+            GeoAgentPipeline._compact_evidence(item, verification=False)
+            for item in evidence[:20]
+        ]
+        suffix = (
+            f"\nCase 模式：{shorten_text(case_mode, 32)}；"
+            f"照片数量：{max(0, min(photo_count, MAX_CASE_PHOTOS))}"
             + "\n证据："
-            + json.dumps(
-                [
-                    {
-                        "id": item.evidence_id,
-                        "kind": item.kind,
-                        "value": item.value,
-                        "reliability": item.reliability,
-                        "scale": item.scale,
-                        "photo_ids": item.photo_ids,
-                        "correlation_group": item.correlation_group,
-                        "supports": item.supports,
-                        "contradicts": item.contradicts,
-                    }
-                    for item in evidence
-                ],
-                ensure_ascii=False,
-            )
+            + compact_json(evidence_payload)
+        )
+        return build_bounded_prompt(
+            language_instruction + "用户查询：",
+            query or "无",
+            suffix,
+            CANDIDATE_PROMPT_CHAR_LIMIT,
         )
 
     @staticmethod
@@ -317,33 +449,28 @@ class GeoAgentPipeline:
         gis_results: Dict[str, CandidateGISResult],
     ) -> str:
         evidence_payload = [
-            {
-                "id": item.evidence_id,
-                "kind": item.kind,
-                "value": item.value,
-                "reliability": item.reliability,
-                "photo_ids": item.photo_ids,
-                "correlation_group": item.correlation_group,
-                "supports": item.supports,
-                "contradicts": item.contradicts,
-            }
-            for item in evidence
+            GeoAgentPipeline._compact_evidence(item, verification=True)
+            for item in evidence[:20]
         ]
         candidate_payload = [
             {
                 "id": item.candidate_id,
-                "name": item.name,
-                "country": item.country,
+                "name": shorten_text(item.name, 96),
+                "country": shorten_text(item.country, 64),
                 "country_code": item.country_code,
-                "region": item.region,
+                "region": shorten_text(item.region, 96),
                 "latitude": item.latitude,
                 "longitude": item.longitude,
                 "initial_score": item.initial_score,
                 "radius_km": item.radius_km,
-                "supporting_evidence": item.supporting_evidence,
-                "rationale": item.rationale,
+                "supporting_evidence": compact_text_list(
+                    item.supporting_evidence, max_items=12, max_chars=24
+                ),
+                "rationale": shorten_text(item.rationale, 200),
                 "gis_verification": (
-                    gis_results[item.candidate_id].to_prompt_dict()
+                    GeoAgentPipeline._compact_gis_result(
+                        gis_results[item.candidate_id]
+                    )
                     if item.candidate_id in gis_results
                     else {}
                 ),
@@ -355,20 +482,103 @@ class GeoAgentPipeline:
             if get_language() == EN
             else "人类可读文本请使用中文。\n"
         )
-        return (
-            language_instruction
-            +
-            "用户查询："
-            + (query or "无")
-            + "\n证据："
-            + json.dumps(evidence_payload, ensure_ascii=False)
+        suffix = (
+            "\n证据："
+            + compact_json(evidence_payload)
             + "\n候选："
-            + json.dumps(candidate_payload, ensure_ascii=False)
+            + compact_json(candidate_payload)
+        )
+        return build_bounded_prompt(
+            language_instruction + "用户查询：",
+            query or "无",
+            suffix,
+            VERIFY_PROMPT_CHAR_LIMIT,
         )
 
     @staticmethod
+    def _compact_evidence(
+        item: Evidence, verification: bool
+    ) -> Dict[str, Any]:
+        return {
+            "id": shorten_text(item.evidence_id, 24),
+            "kind": shorten_text(item.kind, 48),
+            "value": shorten_text(item.value, 120 if verification else 320),
+            "reliability": item.reliability,
+            "scale": shorten_text(item.scale, 32),
+            "photo_ids": compact_text_list(
+                item.photo_ids, max_items=6, max_chars=12
+            ),
+            "correlation_group": shorten_text(
+                item.correlation_group, 32 if verification else 96
+            ),
+            "supports": compact_text_list(
+                item.supports,
+                max_items=1 if verification else 4,
+                max_chars=48 if verification else 96,
+            ),
+            "contradicts": compact_text_list(
+                item.contradicts,
+                max_items=1 if verification else 4,
+                max_chars=48 if verification else 96,
+            ),
+        }
+
+    @staticmethod
+    def _compact_gis_result(
+        result: CandidateGISResult,
+    ) -> Dict[str, Any]:
+        reverse = result.reverse
+        ranked_checks = sorted(
+            result.checks,
+            key=lambda check: (
+                not check.required,
+                check.matched is not False,
+                check.matched is None,
+                -float(check.weight or 0.0),
+            ),
+        )[:3]
+        return {
+            "candidate_id": shorten_text(result.candidate_id, 24),
+            "reverse": {
+                "display_name": shorten_text(reverse.display_name, 160),
+                "country": shorten_text(reverse.country, 64),
+                "country_code": shorten_text(reverse.country_code, 8),
+                "region": shorten_text(reverse.region, 96),
+                "locality": shorten_text(reverse.locality, 96),
+                "source": shorten_text(reverse.source, 48),
+                "aliases": compact_text_list(
+                    reverse.aliases, max_items=2, max_chars=64
+                ),
+            },
+            "checks": [
+                {
+                    "check_id": shorten_text(check.check_id, 40),
+                    "kind": shorten_text(check.kind, 32),
+                    "label": shorten_text(check.label, 64),
+                    "matched": check.matched,
+                    "source": shorten_text(check.source, 48),
+                    "count": check.count,
+                    "nearest_distance_km": check.nearest_distance_km,
+                    "detail": shorten_text(check.detail, 96),
+                    "strength": check.strength,
+                    "weight": check.weight,
+                    "required": check.required,
+                }
+                for check in ranked_checks
+            ],
+            "gis_score": result.gis_score,
+            "coverage": result.coverage,
+            "verified": result.verified,
+            "backend": shorten_text(result.backend, 96),
+            "checks_total": len(result.checks),
+            "checks_in_prompt": len(ranked_checks),
+        }
+
+    @staticmethod
     def _parse_evidence(
-        payload: Dict[str, Any], local_evidence: List[Evidence]
+        payload: Dict[str, Any],
+        local_evidence: List[Evidence],
+        limit: int = 20,
     ) -> List[Evidence]:
         raw = payload.get("evidence")
         remote = [
@@ -408,7 +618,7 @@ class GeoAgentPipeline:
             used_ids.add(item.evidence_id)
             by_content[key] = item
             merged.append(item)
-        return merged[:20]
+        return merged[: max(1, limit)]
 
     @staticmethod
     def _parse_candidates(payload: Dict[str, Any]) -> List[Candidate]:
