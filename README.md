@@ -27,8 +27,12 @@ Developed by the [UrbanComp team](https://urbancomp.net).
   locally to avoid multi-image context failures.
 - Three-stage agent pipeline:
   1. extract visual and contextual evidence;
-  2. generate geographically diverse candidate locations;
+  2. propose hypotheses and resolve them through a real place index;
   3. verify and rerank candidates with GIS evidence.
+- One stateless, low-temperature retry when Qwen returns incomplete JSON.
+- Real PostGIS/Nominatim name lookup replaces model coordinates with indexed
+  OSM place records. If an alias cannot be resolved safely, coordinate-based
+  reverse lookup attaches a real OSM identity without moving the queried point.
 - Real OSM Nominatim reverse geocoding and Overpass spatial constraints.
 - Optional local PostgreSQL/PostGIS verification with `ST_Covers`,
   `ST_DWithin`, and `ST_Distance`.
@@ -189,6 +193,9 @@ development session, use `SAKUGIS_BRAVE_API_KEY` or
 
 Without additional configuration, SakuGIS uses:
 
+- Nominatim Search to resolve Agent 2 hypotheses to real OSM place records,
+  with distance guards against far-away same-country false matches;
+- coordinate-based Nominatim reverse lookup as a low-similarity alias fallback;
 - Nominatim for country, region, locality, and reverse-geocoding checks;
 - Overpass for bounded checks around coastlines, peaks, volcanoes, vineyards,
   waterways, stations, and related OSM features;
@@ -196,8 +203,9 @@ Without additional configuration, SakuGIS uses:
   instead of being treated as mismatches.
 
 For production or batch workflows, connect a local OSM-backed PostGIS
-database from the Geo Agents panel. The DSN is stored in the macOS Keychain.
-See [docs/postgis.md](docs/postgis.md).
+database from the Geo Agents panel. The local backend uses multilingual
+`pg_trgm` name indexes for place lookup before spatial verification. The DSN
+is stored in the macOS Keychain. See [docs/postgis.md](docs/postgis.md).
 
 ## Satellite imagery
 
@@ -212,7 +220,7 @@ it with an officially supported provider configuration for production.
 
 ## Tests
 
-The non-GUI tests can run with the system Python:
+The 50 non-GUI tests can run with the system Python:
 
 ```bash
 PYTHONPATH=src python3 -m unittest discover -s tests -v
@@ -224,6 +232,24 @@ Runtime checks that depend on QGIS can be run with:
 ./scripts/check-runtime.sh
 ./scripts/check-agent-pipeline.py
 ```
+
+For repeatable live multimodal regression, provide a JSON manifest containing
+local image paths, queries, expected coordinates, and Top-1/Top-3 distance
+thresholds:
+
+```bash
+PYTHONPATH=src python3 scripts/regression-multimodal.py \
+  --manifest /path/to/regression-manifest.json \
+  --output-dir ./regression-output \
+  --language zh_CN
+```
+
+The 2026-07-28 release regression covered five distinct scenes: Shanghai
+waterfront (two photos), Mount Fuji and a pagoda (three photos), Erg Chebbi
+dunes, Jökulsárlón glacier lagoon, and Rio de Janeiro's Sugarloaf Mountain.
+All 5/5 core runs and 5/5 web-enrichment runs passed. The final run resolved
+17/17 candidates to real place records, issued 18 stateless Qwen requests with
+zero retries, and verified that every photo contributed visual evidence.
 
 ## Build the macOS application
 

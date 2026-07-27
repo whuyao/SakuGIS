@@ -1,4 +1,4 @@
-# SakuGIS PostGIS 核验后端
+# SakuGIS PostGIS 地点检索与核验后端
 
 SakuGIS 默认使用 OSM Nominatim + Overpass。需要稳定吞吐、离线运行或更大
 候选集时，可把 OSM extract 导入自有 PostgreSQL + PostGIS，并通过 Geo
@@ -23,7 +23,8 @@ psql "$DATABASE_URL" -f scripts/init-postgis.sql
 该表。行政区地点反查需要保留 `boundary=administrative`、`admin_level`、
 `ISO3166-1:alpha2` 与多语言名称；特征核验需要保留任务中使用的
 `natural`、`landuse`、`waterway`、`railway`、`aeroway`、`amenity` 等标签。
-SakuGIS 不随应用分发全球 OSM 数据。
+Agent 2 的地点检索还会使用 `name`、`name:en` 和 `name:zh`。初始化脚本为
+这些字段建立 `pg_trgm` 索引。SakuGIS 不随应用分发全球 OSM 数据。
 
 ## 连接配置
 
@@ -45,6 +46,8 @@ PostgreSQL 标识符，所有候选坐标、半径和标签值都使用参数化
 
 ## 查询语义
 
+- 地点名称检索：参数化 `ILIKE` 查询多语言名称并返回
+  `ST_PointOnSurface(geom)` 坐标；
 - 行政区反查：`ST_Covers(admin_geom, candidate_point)`；
 - 特征半径约束：`ST_DWithin(geom::geography, point::geography, radius_m)`；
 - 最近距离：`ST_Distance(...::geography) / 1000`。
@@ -53,5 +56,6 @@ PostgreSQL 标识符，所有候选坐标、半径和标签值都使用参数化
 或表结构不符时，本次分析回退到 OSM 在线服务，界面会显示实际使用的后端。
 
 生产部署应给应用只读账户，仅授予目标表的 `SELECT` 权限，并为 `geom`
-保留 GiST 索引、为 `tags` 保留 GIN 索引。导入或更新 OSM 数据后执行
+保留 GiST 索引、为 `tags` 保留 GIN 索引，并保留初始化脚本创建的多语言
+名称 trigram 索引。导入或更新 OSM 数据后执行
 `ANALYZE public.sakugis_osm_features`。

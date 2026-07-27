@@ -159,6 +159,11 @@ def fuse_candidate_score(
 
     candidate.ranking_components = {
         "retrieval": clamp(candidate.initial_score),
+        "model_candidate": clamp(candidate.model_candidate_score),
+        "place_lookup": clamp(candidate.retrieval_score),
+        "place_lookup_verified": (
+            1.0 if candidate.retrieval_verified else 0.0
+        ),
         "model": model_score,
         "evidence_confidence": confidence,
         "effective_model": clamp(effective_model),

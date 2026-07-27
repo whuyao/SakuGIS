@@ -29,15 +29,25 @@ def main() -> int:
         query=arguments.query,
         progress=lambda percent, message: print(f"[{percent:3d}%] {message}"),
     )
+    print(
+        "retrieval={backend} resolved={resolved}/{total}".format(
+            backend=result.retrieval_backend,
+            resolved=result.retrieval_resolved_count,
+            total=len(result.candidates),
+        )
+    )
     print(f"backend={result.gis_backend}")
     for rank, candidate in enumerate(result.candidates, 1):
         print(
             "{rank}. {name} ({lat:.5f}, {lon:.5f}) "
+            "lookup={lookup}({lookup_score:.1f}) "
             "score={score:.1f} gis={gis:.1f} coverage={coverage:.0f}%".format(
                 rank=rank,
                 name=candidate.name,
                 lat=candidate.latitude,
                 lon=candidate.longitude,
+                lookup=candidate.retrieval_source,
+                lookup_score=candidate.retrieval_score * 100.0,
                 score=candidate.ranking_score * 100.0,
                 gis=candidate.gis_score * 100.0,
                 coverage=candidate.gis_coverage * 100.0,

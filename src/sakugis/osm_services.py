@@ -12,10 +12,11 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
-from sakugis.agent_models import Candidate
+from sakugis.agent_models import Candidate, RetrievedPlace, clamp
 from sakugis.gis_models import GISCheck, ReversePlace, SpatialConstraint
 
 
@@ -199,6 +200,103 @@ class OSMServices:
         }
         self.cache.set("reverse", rounded_key, sanitized)
         return self._reverse_place(sanitized)
+
+    def search_places(
+        self,
+        query_text: str,
+        language: str = "en,zh-CN",
+        limit: int = 3,
+    ) -> List[RetrievedPlace]:
+        """Resolve a model hypothesis against real Nominatim place records."""
+
+        cleaned = " ".join(str(query_text or "").split())[:320]
+        if not cleaned:
+            return []
+        bounded_limit = max(1, min(5, int(limit)))
+        cache_key = f"v1:{language}:{bounded_limit}:{cleaned.casefold()}"
+        cached = self.cache.get("search", cache_key, 30 * 24 * 60 * 60)
+        if isinstance(cached, list):
+            payload = cached
+        else:
+            query = urllib.parse.urlencode(
+                {
+                    "format": "jsonv2",
+                    "q": cleaned,
+                    "limit": str(bounded_limit),
+                    "addressdetails": "1",
+                    "namedetails": "1",
+                    "accept-language": language,
+                    "dedupe": "1",
+                }
+            )
+            request = urllib.request.Request(
+                f"{self.nominatim_url}/search?{query}"
+            )
+            request.add_header("User-Agent", USER_AGENT)
+            request.add_header("Accept", "application/json")
+            raw = self._open_value(request, rate_limited=True)
+            if not isinstance(raw, list):
+                raise OSMServiceError("Invalid OSM search response")
+            payload = [item for item in raw if isinstance(item, dict)]
+            self.cache.set("search", cache_key, payload)
+        return [
+            place
+            for place in (
+                self._search_place(item) for item in payload[:bounded_limit]
+            )
+            if place is not None
+        ]
+
+    def reverse_place_record(
+        self,
+        latitude: float,
+        longitude: float,
+        language: str = "en,zh-CN",
+    ) -> Optional[RetrievedPlace]:
+        """Resolve model coordinates to the nearest real OSM place record.
+
+        This is intentionally a fallback for aliases that Nominatim's text
+        search cannot resolve.  It does not replace name-based retrieval.
+        """
+
+        if not -90.0 <= latitude <= 90.0 or not -180.0 <= longitude <= 180.0:
+            return None
+        rounded_key = f"v1:{latitude:.5f},{longitude:.5f},{language}"
+        cached = self.cache.get(
+            "reverse-place", rounded_key, 30 * 24 * 60 * 60
+        )
+        if isinstance(cached, dict):
+            payload = cached
+        else:
+            query = urllib.parse.urlencode(
+                {
+                    "format": "jsonv2",
+                    "lat": f"{latitude:.7f}",
+                    "lon": f"{longitude:.7f}",
+                    "zoom": "18",
+                    "addressdetails": "1",
+                    "namedetails": "1",
+                    "accept-language": language,
+                }
+            )
+            request = urllib.request.Request(
+                f"{self.nominatim_url}/reverse?{query}"
+            )
+            request.add_header("User-Agent", USER_AGENT)
+            request.add_header("Accept", "application/json")
+            payload = self._open_json(request, rate_limited=True)
+            self.cache.set("reverse-place", rounded_key, payload)
+        place = self._search_place(payload)
+        return (
+            replace(
+                place,
+                latitude=latitude,
+                longitude=longitude,
+                source="OSM Nominatim reverse",
+            )
+            if place is not None
+            else None
+        )
 
     def overpass_checks(
         self,
@@ -469,6 +567,14 @@ class OSMServices:
     def _open_json(
         self, request: urllib.request.Request, rate_limited: bool = False
     ) -> Dict[str, Any]:
+        payload = self._open_value(request, rate_limited=rate_limited)
+        if not isinstance(payload, dict):
+            raise OSMServiceError("Invalid OSM response")
+        return payload
+
+    def _open_value(
+        self, request: urllib.request.Request, rate_limited: bool = False
+    ) -> Any:
         if rate_limited:
             self._wait_for_nominatim_slot()
         try:
@@ -480,9 +586,62 @@ class OSMServices:
             raise OSMServiceError("OSM service unavailable") from exc
         except (OSError, ValueError) as exc:
             raise OSMServiceError("Invalid OSM response") from exc
-        if not isinstance(payload, dict):
-            raise OSMServiceError("Invalid OSM response")
         return payload
+
+    @staticmethod
+    def _search_place(payload: Dict[str, Any]) -> Optional[RetrievedPlace]:
+        try:
+            latitude = float(payload["lat"])
+            longitude = float(payload["lon"])
+        except (KeyError, TypeError, ValueError):
+            return None
+        if not -90.0 <= latitude <= 90.0 or not -180.0 <= longitude <= 180.0:
+            return None
+        address = payload.get("address")
+        address = address if isinstance(address, dict) else {}
+        namedetails = payload.get("namedetails")
+        namedetails = namedetails if isinstance(namedetails, dict) else {}
+        display_name = str(payload.get("display_name") or "").strip()
+        name = str(
+            namedetails.get("name")
+            or namedetails.get("name:en")
+            or payload.get("name")
+            or display_name.split(",", 1)[0]
+        ).strip()
+        region = next(
+            (
+                str(address[key]).strip()
+                for key in (
+                    "state",
+                    "region",
+                    "state_district",
+                    "county",
+                    "city",
+                    "town",
+                    "municipality",
+                )
+                if address.get(key)
+            ),
+            "",
+        )
+        source_type = str(payload.get("osm_type") or "").strip()
+        source_id = str(payload.get("osm_id") or "").strip()
+        return RetrievedPlace(
+            name=name,
+            display_name=display_name,
+            country=str(address.get("country") or "").strip(),
+            country_code=str(address.get("country_code") or "").upper()[:2],
+            region=region,
+            latitude=latitude,
+            longitude=longitude,
+            source="OSM Nominatim",
+            source_id=(
+                f"{source_type}/{source_id}"
+                if source_type and source_id
+                else source_id
+            ),
+            importance=clamp(payload.get("importance")),
+        )
 
     @staticmethod
     def _wait_for_nominatim_slot() -> None:

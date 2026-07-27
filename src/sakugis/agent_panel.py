@@ -191,6 +191,7 @@ class AgentPanel(QWidget):
             [
                 tr("agent.rank"),
                 tr("agent.candidate"),
+                tr("agent.place_lookup"),
                 tr("agent.score"),
                 tr("agent.evidence_score"),
                 tr("agent.photo_match"),
@@ -307,6 +308,7 @@ class AgentPanel(QWidget):
             [
                 tr("agent.rank"),
                 tr("agent.candidate"),
+                tr("agent.place_lookup"),
                 tr("agent.score"),
                 tr("agent.evidence_score"),
                 tr("agent.photo_match"),
@@ -632,6 +634,32 @@ class AgentPanel(QWidget):
                 ]
             )
             item.setToolTip(1, evidence.value)
+            item.setToolTip(
+                0,
+                "\n".join(
+                    part
+                    for part in (
+                        f"ID: {evidence.evidence_id}",
+                        (
+                            f"Group: {evidence.correlation_group}"
+                            if evidence.correlation_group
+                            else ""
+                        ),
+                        (
+                            "Supports: " + ", ".join(evidence.supports)
+                            if evidence.supports
+                            else ""
+                        ),
+                        (
+                            "Contradicts: "
+                            + ", ".join(evidence.contradicts)
+                            if evidence.contradicts
+                            else ""
+                        ),
+                    )
+                    if part
+                ),
+            )
             self.evidence_tree.addTopLevelItem(item)
         self.evidence_tree.resizeColumnToContents(0)
         self.evidence_tree.resizeColumnToContents(2)
@@ -647,6 +675,11 @@ class AgentPanel(QWidget):
                 [
                     str(index),
                     location,
+                    (
+                        f"{candidate.retrieval_score * 100:.0f}/100 ✓"
+                        if candidate.retrieval_verified
+                        else tr("agent.lookup_fallback")
+                    ),
                     f"{candidate.ranking_score * 100:.0f}/100",
                     f"{candidate.model_verification_score * 100:.0f}/100",
                     (
@@ -670,6 +703,8 @@ class AgentPanel(QWidget):
                 (
                     f"{candidate.latitude:.6f}, {candidate.longitude:.6f}\n"
                     f"{candidate.rationale}\n{candidate.reverse_label}"
+                    f"\n{candidate.retrieval_source}: "
+                    f"{candidate.retrieval_label or '—'}"
                     f"{score_detail}"
                 ),
             )
@@ -704,6 +739,7 @@ class AgentPanel(QWidget):
         self.candidate_tree.resizeColumnToContents(5)
         self.candidate_tree.resizeColumnToContents(6)
         self.candidate_tree.resizeColumnToContents(7)
+        self.candidate_tree.resizeColumnToContents(8)
         self.gis_tree.resizeColumnToContents(1)
         self.gis_tree.resizeColumnToContents(2)
         self.gis_tree.resizeColumnToContents(3)
@@ -725,6 +761,7 @@ class AgentPanel(QWidget):
                 tr(
                     "agent.model_note",
                     model=result.model,
+                    retrieval=result.retrieval_backend,
                     backend=result.gis_backend,
                 )
             )
@@ -744,7 +781,7 @@ class AgentPanel(QWidget):
         if not isinstance(candidate, Candidate):
             return
         self.candidateSelected.emit(candidate)
-        support = ", ".join(candidate.supporting_evidence) or "—"
+        support = self._supporting_evidence_text(candidate)
         contradictions = "; ".join(candidate.contradictions) or "—"
         photo_match = (
             f"{candidate.photo_support_count}/{candidate.photo_total_count}"
@@ -763,6 +800,12 @@ class AgentPanel(QWidget):
             f"{candidate.gis_score * 100:.1f}/100</p>"
             f"<p><b>{self._escape(tr('report.reverse'))}:</b> "
             f"{self._escape(candidate.reverse_label or '—')}</p>"
+            f"<p><b>{self._escape(tr('report.place_lookup'))}:</b> "
+            f"{self._escape(candidate.retrieval_source or '—')} · "
+            f"{self._escape(candidate.retrieval_label or '—')} "
+            f"({candidate.retrieval_score * 100:.1f}/100)<br>"
+            f"<b>{self._escape(tr('report.lookup_query'))}:</b> "
+            f"{self._escape(candidate.retrieval_query or '—')}</p>"
             f"<p><b>{self._escape(tr('report.rationale'))}:</b> "
             f"{self._escape(candidate.rationale or '—')}</p>"
             f"<p><b>{self._escape(tr('report.support'))}:</b> "
@@ -772,6 +815,25 @@ class AgentPanel(QWidget):
             f"<p>{self._escape(self._score_formula(candidate))}</p>"
             f"<p><i>{self._escape(tr('agent.double_click_hint'))}</i></p>"
         )
+
+    def _supporting_evidence_text(self, candidate: Candidate) -> str:
+        if self._last_result is None:
+            return ", ".join(candidate.supporting_evidence) or "—"
+        by_id = {
+            item.evidence_id: item for item in self._last_result.evidence
+        }
+        details = []
+        for evidence_id in candidate.supporting_evidence:
+            evidence = by_id.get(evidence_id)
+            if evidence is None:
+                details.append(evidence_id)
+                continue
+            photos = "/".join(evidence.photo_ids)
+            provenance = f" [{photos}]" if photos else ""
+            details.append(
+                f"{evidence_id}{provenance}: {evidence.value}"
+            )
+        return "; ".join(details) or "—"
 
     @staticmethod
     def _score_formula(candidate: Candidate) -> str:
@@ -784,6 +846,12 @@ class AgentPanel(QWidget):
         return tr(
             key,
             retrieval=f"{components.get('retrieval', 0.0) * 100:.1f}",
+            model_candidate=(
+                f"{components.get('model_candidate', 0.0) * 100:.1f}"
+            ),
+            place_lookup=(
+                f"{components.get('place_lookup', 0.0) * 100:.1f}"
+            ),
             model=f"{components.get('model', 0.0) * 100:.1f}",
             effective_model=f"{components.get('effective_model', 0.0) * 100:.1f}",
             confidence=f"{components.get('evidence_confidence', 0.0) * 100:.0f}",

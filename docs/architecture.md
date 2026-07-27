@@ -16,12 +16,12 @@ SakuGIS UI (PyQt)
 ├── LayerPanel
 ├── Geo Agents Panel
 │   ├── Agent 1：证据提取
-│   ├── Agent 2：候选生成 + 空间约束规划
+│   ├── Agent 2：候选假设 + 真实地点检索 + 空间约束规划
 │   └── Agent 3：GIS 证据约束下的候选核验
 └── Provider adapters
     ├── OSM XYZ（地图显示）
-    ├── Nominatim / Overpass（在线地点反查与空间核验）
-    ├── PostGIS（可选的本地 OSM 核验）
+    ├── Nominatim Search / Reverse + Overpass（地点解析与空间核验）
+    ├── PostGIS（可选的本地 OSM 地名检索与空间核验）
     └── Google 遥感影像自定义 XYZ（仅地图显示，可替换）
         ↓
 PyQGIS API
@@ -42,11 +42,20 @@ API 调用是无状态的，不保存或重放此前定位的消息。多照片 
 照片公平取样，再以压缩 JSON 交给 Agent 2/3。三个阶段分别限制为 12k、18k、
 32k 字符，客户端在发送前还有默认 48k 总提示保护；GIS 明细优先保留必需项
 与失败项，完整 GIS 分数和覆盖率始终由本地确定性逻辑计算。
+若服务偶发返回截断或格式不完整的 JSON，客户端只进行一次无历史重试：
+不回传破损内容，把温度降为 0，并将输出预算提高到 4096 token。首次返回
+有效 JSON 时不会产生额外调用。
 
-Agent 2 生成候选后，规则规划器把结构化证据和查询文本转换成受限的 OSM
-标签、半径与国家规则。GIS 验证器优先查询已配置的 PostGIS；否则使用
-Nominatim 反查地点，并用 Overpass 查询候选周边真实 OSM 要素。Agent 3
-只能在这些查询结果上解释和重排，`matched=null` 明确表示数据不可用。
+Agent 2 先提出带正式检索词的宽候选。`HybridCandidateRetriever` 随后优先
+在已配置的 PostGIS OSM 地名索引中搜索；未配置或无结果时使用带速率限制和
+磁盘缓存的 Nominatim Search。检索层根据名称、地区、国家、坐标接近度和
+地名重要度选择真实记录，并用其坐标替换模型坐标。无法访问检索服务时保留
+模型候选，但在结果中明确标记为回退，不能伪装成已解析地点。
+
+规则规划器再把结构化证据和查询文本转换成受限的 OSM 标签、半径与国家规则。
+GIS 验证器优先查询已配置的 PostGIS；否则使用 Nominatim Reverse 反查地点，
+并用 Overpass 查询候选周边真实 OSM 要素。Agent 3 只能在这些查询结果上解释
+和重排，`matched=null` 明确表示数据不可用。
 最终排序对 GIS 分数按实际数据覆盖率衰减，避免公共服务超时产生虚假高分。
 候选宽召回后先按 20 km 都市圈去重，再用位置新颖度保留全球不同假设。
 Agent 3 只输出非 GIS 的证据复核分；确定性融合器分别对模型分按证据强度、

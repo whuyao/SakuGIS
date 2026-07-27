@@ -19,8 +19,8 @@ Agent 1：证据提取
 EXIF、OCR、语言、标志、道路、建筑、自然环境
        │  Evidence[]
        ▼
-Agent 2：候选生成 + GIS 查询规划
-当前：千问宽召回 + 都市圈去重 + 地理多样性选择；
+Agent 2：候选假设 + 真实地点检索 + GIS 查询规划
+当前：千问宽召回 + PostGIS/Nominatim 地点解析 + 都市圈去重；
 后续：H3 + GeoCLIP + 向量检索
        │  Candidate[] + SpatialConstraint[]
        ▼
@@ -94,7 +94,19 @@ score(c) =
 }
 ```
 
-## Agent 2：全球候选生成与查询规划
+## Agent 2：全球候选检索与查询规划
+
+当前实现不再直接把模型给出的坐标当作真实地点。千问先输出地点假设和适合
+地名库使用的 `search_query`，SakuGIS 随后执行确定性的地点解析：
+
+1. 若已配置 PostGIS，先在规范化 OSM 要素表的多语言名称索引中检索；
+2. 否则或本地无结果时，使用遵守速率限制并带 30 天缓存的 Nominatim Search；
+3. 根据名称、地区、国家、模型坐标接近度和 OSM 重要度选择匹配记录；
+4. 用检索记录的真实坐标进入后续 GIS 核验，并保存后端、对象 ID 和检索分；
+5. 服务不可用或没有匹配时明确标记模型回退，不宣称候选已经被地名库确认。
+
+这一步解决的是“候选是否对应真实地名对象”，并不等于照片已经定位正确。
+照片与地点是否一致仍由 Agent 3、OSM 空间约束和 PostGIS 检查共同判断。
 
 照片定位采用粗到细的混合方法，避免只依赖一个模型：
 
@@ -204,6 +216,8 @@ Agent 3 的 `evidence_score` 明确排除 GIS，避免同一 GIS 结果先进入
 - 已完成结构化证据表、候选点/范围 QGIS 图层和双击定位；
 - 已完成 API Key 的 macOS 钥匙串存储；
 - 已完成 OSM Nominatim 地点反查和有界、缓存的 Overpass 标签约束；
+- 已完成 Agent 2 的 PostGIS/Nominatim 真实地点检索、坐标解析和模型回退标记；
+- 已完成跨照片 `correlation_group` 合并，不同表述的同一线索不会重复计分；
 - 已完成可选 PostGIS 后端，使用 `ST_Covers`、`ST_DWithin` 和
   `ST_Distance` 查询规范化 OSM 要素表；
 - 已完成 GIS 检查表、GIS 分数和数据覆盖率，并将不可用数据按中性值处理；
