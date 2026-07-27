@@ -42,6 +42,9 @@ def build_markdown_report(
         [result.image_path] if result.image_path else []
     )
     photo_names = [Path(path).name for path in image_paths]
+    evidence_by_id = {
+        item.evidence_id: item for item in result.evidence
+    }
     lines = [
         f"# {tr('report.title')}",
         "",
@@ -119,11 +122,12 @@ def build_markdown_report(
             (
                 f"| {tr('report.rank')} | ID | {tr('report.location')} | "
                 f"{tr('report.coordinates')} | {tr('report.composite')} | "
+                f"{tr('report.place_lookup')} | "
                 f"{tr('report.photo_consistency')} | "
                 f"{tr('report.gis_score')} | {tr('report.coverage')} | "
                 f"{tr('report.radius')} |"
             ),
-            "|---:|---|---|---|---:|---:|---:|---:|---:|",
+            "|---:|---|---|---|---:|---|---:|---:|---:|---:|",
         ]
     )
     if result.candidates:
@@ -146,13 +150,17 @@ def build_markdown_report(
                 f"| {rank} | {_cell(candidate.candidate_id)} | {_cell(location)} | "
                 f"`{candidate.latitude:.6f}, {candidate.longitude:.6f}` | "
                 f"{candidate.ranking_score * 100:.1f}/100 | "
+                f"{_cell(candidate.retrieval_source)} "
+                f"({candidate.retrieval_score * 100:.1f}/100) | "
                 f"{photo_match} | "
                 f"{candidate.gis_score * 100:.1f}/100 | "
                 f"{candidate.gis_coverage * 100:.1f}% | "
                 f"{candidate.radius_km:g} km |"
             )
     else:
-        lines.append("| — | — | — | — | — | — | — | — | — |")
+        lines.append(
+            "| — | — | — | — | — | — | — | — | — | — |"
+        )
 
     lines.extend(["", f"## {tr('report.details')}", ""])
     for rank, candidate in enumerate(result.candidates, 1):
@@ -160,11 +168,21 @@ def build_markdown_report(
             [
                 f"### {rank}. {_text(candidate.name)} ({_text(candidate.candidate_id)})",
                 "",
+                (
+                    f"- **{tr('report.place_lookup')}**: "
+                    f"{_text(candidate.retrieval_source)} · "
+                    f"{_text(candidate.retrieval_label)} "
+                    f"({candidate.retrieval_score * 100:.1f}/100)"
+                ),
+                (
+                    f"- **{tr('report.lookup_query')}**: "
+                    f"{_text(candidate.retrieval_query)}"
+                ),
                 f"- **{tr('report.reverse')}**: {_text(candidate.reverse_label)}",
                 f"- **{tr('report.rationale')}**: {_text(candidate.rationale)}",
                 (
                     f"- **{tr('report.support')}**: "
-                    f"{_join(candidate.supporting_evidence)}"
+                    f"{_support_details(candidate.supporting_evidence, evidence_by_id)}"
                 ),
                 (
                     f"- **{tr('report.contradictions')}**: "
@@ -183,6 +201,12 @@ def build_markdown_report(
                         else "report.score_formula"
                     ),
                     retrieval=f"{components.get('retrieval', 0.0) * 100:.1f}",
+                    model_candidate=(
+                        f"{components.get('model_candidate', 0.0) * 100:.1f}"
+                    ),
+                    place_lookup=(
+                        f"{components.get('place_lookup', 0.0) * 100:.1f}"
+                    ),
                     model=f"{components.get('model', 0.0) * 100:.1f}",
                     effective_model=f"{components.get('effective_model', 0.0) * 100:.1f}",
                     confidence=f"{components.get('evidence_confidence', 0.0) * 100:.0f}",
@@ -250,6 +274,11 @@ def build_markdown_report(
             _text(result.verification_summary),
             "",
             f"- **{tr('report.backend')}**: {_text(result.gis_backend)}",
+            (
+                f"- **{tr('report.lookup_backend')}**: "
+                f"{_text(result.retrieval_backend)} "
+                f"({result.retrieval_resolved_count}/{len(result.candidates)})"
+            ),
             f"- **{tr('report.model')}**: {_text(result.model)}",
             f"- {_text(result.caveat)}",
             "",
@@ -268,3 +297,18 @@ def write_markdown_report(path: str, result: GeoAnalysisResult) -> Path:
     destination = Path(path)
     destination.write_text(build_markdown_report(result), encoding="utf-8")
     return destination
+
+
+def _support_details(evidence_ids, evidence_by_id) -> str:
+    details = []
+    for evidence_id in evidence_ids:
+        evidence = evidence_by_id.get(evidence_id)
+        if evidence is None:
+            details.append(str(evidence_id))
+            continue
+        photos = "/".join(evidence.photo_ids)
+        provenance = f" [{photos}]" if photos else ""
+        details.append(
+            f"{evidence.evidence_id}{provenance}: {evidence.value}"
+        )
+    return _join(details)

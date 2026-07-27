@@ -182,19 +182,30 @@ class QwenClient:
             "image_max_dimension": image_dimension if paths else 0,
             "max_output_tokens": int(max_tokens),
             "message_count": 2,
+            "retry_count": 0,
         }
-        response = self._post("/chat/completions", payload)
-        try:
-            content = response["choices"][0]["message"]["content"]
-        except (KeyError, IndexError, TypeError) as exc:
-            raise QwenApiError(tr("error.api_content")) from exc
-        if isinstance(content, list):
-            content = "".join(
-                str(item.get("text", "")) for item in content if isinstance(item, dict)
-            )
-        if not isinstance(content, str):
-            raise QwenApiError(tr("error.api_message_format"))
-        return extract_json_object(content)
+        for attempt in range(2):
+            response = self._post("/chat/completions", payload)
+            try:
+                return extract_json_object(_response_text(response))
+            except QwenApiError:
+                if attempt:
+                    raise
+                self.last_request_stats["retry_count"] = 1
+                payload["temperature"] = 0
+                payload["max_tokens"] = min(
+                    8192, max(int(max_tokens), 4096)
+                )
+                retry_instruction = (
+                    "\n\nThe previous response was not valid complete JSON. "
+                    "Retry once with compact strings and a complete JSON object. "
+                    "Do not add Markdown or commentary."
+                )
+                if prompt_chars + len(retry_instruction) <= self.max_prompt_chars:
+                    payload["messages"][0]["content"] = (
+                        system_prompt + retry_instruction
+                    )
+        raise QwenApiError(tr("error.invalid_json"))
 
     def list_models(self) -> List[str]:
         request = urllib.request.Request(self.base_url + "/models")
@@ -256,6 +267,22 @@ def _configured_prompt_char_limit() -> int:
     except ValueError:
         configured = QWEN_TOTAL_PROMPT_CHAR_LIMIT
     return max(8000, min(200000, configured))
+
+
+def _response_text(response: Dict[str, Any]) -> str:
+    try:
+        content = response["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise QwenApiError(tr("error.api_content")) from exc
+    if isinstance(content, list):
+        content = "".join(
+            str(item.get("text", ""))
+            for item in content
+            if isinstance(item, dict)
+        )
+    if not isinstance(content, str):
+        raise QwenApiError(tr("error.api_message_format"))
+    return content
 
 
 def _image_dimension_for_count(image_count: int) -> int:

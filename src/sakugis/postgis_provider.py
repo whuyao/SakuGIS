@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Sequence, Tuple
 
-from sakugis.agent_models import Candidate
+from sakugis.agent_models import Candidate, RetrievedPlace, clamp
 from sakugis.credentials import get_postgis_dsn
 from sakugis.gis_models import GISCheck, ReversePlace, SpatialConstraint
 
@@ -85,6 +85,116 @@ class PostGISProvider:
         except Exception as exc:
             raise PostGISError("PostGIS verification failed") from exc
         return reverse, checks
+
+    def search_places(
+        self, query_text: str, limit: int = 3
+    ) -> List[RetrievedPlace]:
+        """Search the configured OSM feature index without model-generated SQL."""
+
+        if not self.enabled:
+            raise PostGISError("PostGIS is not configured")
+        cleaned = " ".join(str(query_text or "").split())[:160]
+        if not cleaned:
+            return []
+        try:
+            import psycopg
+        except ImportError as exc:
+            raise PostGISError("psycopg is not available") from exc
+
+        table = self.config.quoted_table
+        bounded_limit = max(1, min(5, int(limit)))
+        pattern = f"%{cleaned}%"
+        query = f"""
+            SELECT
+                COALESCE(name, tags->>'name:en', tags->>'name:zh', ''),
+                tags,
+                ST_Y(ST_PointOnSurface(geom)) AS latitude,
+                ST_X(ST_PointOnSurface(geom)) AS longitude,
+                osm_type,
+                osm_id,
+                CASE
+                  WHEN lower(COALESCE(name, tags->>'name:en', tags->>'name:zh', ''))
+                       = lower(%s) THEN 1.0
+                  ELSE 0.65
+                END AS importance
+            FROM {table}
+            WHERE name ILIKE %s
+               OR tags->>'name:en' ILIKE %s
+               OR tags->>'name:zh' ILIKE %s
+            ORDER BY importance DESC,
+                     char_length(COALESCE(name, tags->>'name:en', tags->>'name:zh', ''))
+            LIMIT %s
+        """
+        try:
+            with psycopg.connect(
+                self.config.dsn, connect_timeout=5
+            ) as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        query,
+                        (
+                            cleaned,
+                            pattern,
+                            pattern,
+                            pattern,
+                            bounded_limit,
+                        ),
+                    )
+                    rows = cursor.fetchall()
+        except Exception as exc:
+            raise PostGISError("PostGIS place search failed") from exc
+
+        places: List[RetrievedPlace] = []
+        for name, tags, latitude, longitude, osm_type, osm_id, importance in rows:
+            try:
+                latitude = float(latitude)
+                longitude = float(longitude)
+            except (TypeError, ValueError):
+                continue
+            if not (
+                -90.0 <= latitude <= 90.0
+                and -180.0 <= longitude <= 180.0
+            ):
+                continue
+            tags = tags if isinstance(tags, dict) else {}
+            country = str(
+                tags.get("addr:country")
+                or tags.get("is_in:country")
+                or ""
+            )
+            country_code = str(
+                tags.get("ISO3166-1:alpha2")
+                or tags.get("addr:country_code")
+                or ""
+            ).upper()[:2]
+            region = str(
+                tags.get("addr:state")
+                or tags.get("is_in:state")
+                or tags.get("addr:city")
+                or ""
+            )
+            label_parts = [
+                str(name or "").strip(),
+                region.strip(),
+                country.strip(),
+            ]
+            places.append(
+                RetrievedPlace(
+                    name=str(name or "").strip(),
+                    display_name=", ".join(
+                        part for part in label_parts if part
+                    ),
+                    country=country,
+                    country_code=country_code,
+                    region=region,
+                    latitude=latitude,
+                    longitude=longitude,
+                    source="PostGIS OSM index",
+                    source_id=f"{osm_type}/{osm_id}",
+                    importance=clamp(importance),
+                )
+            )
+        return places
 
     @staticmethod
     def _reverse(cursor: Any, table: str, candidate: Candidate) -> ReversePlace:

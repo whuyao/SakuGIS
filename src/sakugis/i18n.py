@@ -372,6 +372,15 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "agent.candidate": {ZH_CN: "候选地点", EN: "Candidate"},
     "agent.score": {ZH_CN: "GIS 综合评分", EN: "GIS Composite Score"},
     "agent.evidence_score": {ZH_CN: "证据复核", EN: "Evidence Review"},
+    "agent.place_lookup": {ZH_CN: "地点检索", EN: "Place Lookup"},
+    "agent.lookup_verified": {
+        ZH_CN: "已解析",
+        EN: "Resolved",
+    },
+    "agent.lookup_fallback": {
+        ZH_CN: "模型坐标回退",
+        EN: "Model-coordinate fallback",
+    },
     "agent.photo_match": {ZH_CN: "照片覆盖", EN: "Photo Match"},
     "agent.gis_score": {ZH_CN: "GIS 分数", EN: "GIS Score"},
     "agent.coverage": {ZH_CN: "GIS 覆盖率", EN: "GIS Coverage"},
@@ -474,8 +483,8 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     },
     "agent.important": {ZH_CN: "重要：", EN: "Important:"},
     "agent.model_note": {
-        ZH_CN: "模型：{model} · GIS：{backend} · 当前分数不是统计概率。",
-        EN: "Model: {model} · GIS: {backend} · Scores are not statistical probabilities.",
+        ZH_CN: "模型：{model} · 地点检索：{retrieval} · GIS：{backend} · 当前分数不是统计概率。",
+        EN: "Model: {model} · Place lookup: {retrieval} · GIS: {backend} · Scores are not statistical probabilities.",
     },
     "agent.layer_points": {
         ZH_CN: "Agent 候选位置（GIS 已核验）",
@@ -576,6 +585,15 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "report.radius": {ZH_CN: "候选半径", EN: "Radius"},
     "report.reliability": {ZH_CN: "可靠度", EN: "Reliability"},
     "report.source": {ZH_CN: "来源", EN: "Source"},
+    "report.place_lookup": {ZH_CN: "真实地点检索", EN: "Real Place Lookup"},
+    "report.lookup_backend": {
+        ZH_CN: "地点检索后端",
+        EN: "Place Lookup Backend",
+    },
+    "report.lookup_query": {
+        ZH_CN: "检索词",
+        EN: "Lookup Query",
+    },
     "report.support": {ZH_CN: "支持证据", EN: "Supporting Evidence"},
     "report.contradictions": {ZH_CN: "矛盾项", EN: "Contradictions"},
     "report.details": {ZH_CN: "候选核验详情", EN: "Candidate Verification Details"},
@@ -594,12 +612,12 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         EN: "{count} required constraint(s) could not be verified because GIS data was unavailable; the final score was capped.",
     },
     "report.score_formula": {
-        ZH_CN: "检索 {retrieval} × 20% + 收缩后证据复核 {effective_model} × 35%（模型原始 {model}；证据强度 {confidence}%）+ 覆盖率校正 GIS {effective_gis} × 45%（原始 {gis}；覆盖 {coverage}%）− 冲突扣分 {penalty}",
-        EN: "retrieval {retrieval} × 20% + shrunk evidence review {effective_model} × 35% (raw model {model}; evidence strength {confidence}%) + coverage-adjusted GIS {effective_gis} × 45% (raw {gis}; coverage {coverage}%) − contradiction penalty {penalty}",
+        ZH_CN: "候选检索 {retrieval}（模型先验 {model_candidate}；地点库 {place_lookup}）× 20% + 收缩后证据复核 {effective_model} × 35%（模型原始 {model}；证据强度 {confidence}%）+ 覆盖率校正 GIS {effective_gis} × 45%（原始 {gis}；覆盖 {coverage}%）− 冲突扣分 {penalty}",
+        EN: "candidate retrieval {retrieval} (model prior {model_candidate}; place index {place_lookup}) × 20% + shrunk evidence review {effective_model} × 35% (raw model {model}; evidence strength {confidence}%) + coverage-adjusted GIS {effective_gis} × 45% (raw {gis}; coverage {coverage}%) − contradiction penalty {penalty}",
     },
     "report.score_formula_multi": {
-        ZH_CN: "检索 {retrieval} × 18% + 收缩后证据复核 {effective_model} × 30%（模型原始 {model}；证据强度 {confidence}%）+ 收缩后跨照片覆盖 {photo} × 10% + 覆盖率校正 GIS {effective_gis} × 42%（原始 {gis}；覆盖 {coverage}%）− 冲突扣分 {penalty}",
-        EN: "retrieval {retrieval} × 18% + shrunk evidence review {effective_model} × 30% (raw model {model}; evidence strength {confidence}%) + shrunk cross-photo coverage {photo} × 10% + coverage-adjusted GIS {effective_gis} × 42% (raw {gis}; coverage {coverage}%) − contradiction penalty {penalty}",
+        ZH_CN: "候选检索 {retrieval}（模型先验 {model_candidate}；地点库 {place_lookup}）× 18% + 收缩后证据复核 {effective_model} × 30%（模型原始 {model}；证据强度 {confidence}%）+ 收缩后跨照片覆盖 {photo} × 10% + 覆盖率校正 GIS {effective_gis} × 42%（原始 {gis}；覆盖 {coverage}%）− 冲突扣分 {penalty}",
+        EN: "candidate retrieval {retrieval} (model prior {model_candidate}; place index {place_lookup}) × 18% + shrunk evidence review {effective_model} × 30% (raw model {model}; evidence strength {confidence}%) + shrunk cross-photo coverage {photo} × 10% + coverage-adjusted GIS {effective_gis} × 42% (raw {gis}; coverage {coverage}%) − contradiction penalty {penalty}",
     },
     "report.check": {ZH_CN: "检查项", EN: "Check"},
     "report.result": {ZH_CN: "结果", EN: "Result"},
@@ -630,6 +648,14 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "progress.agent2": {
         ZH_CN: "Agent 2 正在生成全球候选位置…",
         EN: "Agent 2 is generating worldwide candidates…",
+    },
+    "progress.retrieval": {
+        ZH_CN: "正在使用 OSM / PostGIS 检索真实地点…",
+        EN: "Retrieving real places from OSM / PostGIS…",
+    },
+    "progress.retrieval_place": {
+        ZH_CN: "正在解析候选地点 {current}/{total}…",
+        EN: "Resolving candidate place {current}/{total}…",
     },
     "progress.gis": {
         ZH_CN: "正在使用 OSM / PostGIS 核验候选位置…",

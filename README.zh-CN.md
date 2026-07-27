@@ -19,9 +19,13 @@ QGIS 工程保存能力。由 [UrbanComp 团队](https://urbancomp.net)开发。
 - 多照片 Case 工作区：可联合分析最多 6 张同一地点照片，同时兼容单照片
   和纯文本查询；每张照片分别发送一次视觉请求，证据在本机合并，避免多图
   同时上传造成上下文失败，并保留照片来源、合并跨照片重复线索
-- 三阶段千问流水线：证据提取、候选生成、候选核验与重排
-- Agent 2/3 的真实 GIS 核验：OSM Nominatim 地点反查、Overpass 空间约束，
-  以及可选的本地 PostGIS 后端
+- 三阶段千问流水线：证据提取、候选假设、候选核验与重排
+- 千问偶发返回不完整 JSON 时执行一次无历史、低温度的受控重试
+- Agent 2 真实地点检索：模型候选先通过 PostGIS OSM 名称索引或 Nominatim
+  Search 解析为真实地名对象和坐标；别名无法安全解析时，通过坐标反查附加
+  真实 OSM 身份并保留被核验的查询坐标，未解析项明确标记为模型回退
+- Agent 2/3 的真实 GIS 核验：Nominatim Reverse 地点反查、Overpass 空间
+  约束，以及可选的本地 PostGIS 后端
 - GIS 核验分数与数据覆盖率分开显示；超时或缺失数据不会被当成匹配
 - 候选都市圈去重与全球多样性选择，避免多个近邻地点挤占候选列表
 - 证据强度和 GIS 覆盖率分别校正排序；国家、通行方向及用户必需空间约束
@@ -176,6 +180,9 @@ SAKUGIS_QWEN_MAX_PROMPT_CHARS=48000 \
 
 无需额外配置时，Agent 2/3 会使用真实的 OSM 服务：
 
+- Nominatim Search 将 Agent 2 的地点假设解析为真实 OSM 地名对象与坐标，
+  并通过距离门槛阻止同一国家内的远距离误匹配；
+- 名称别名低相似度或无结果时，以候选坐标执行 Nominatim Reverse 兜底；
 - Nominatim 对每个候选坐标进行国家、地区和地点反查；
 - Overpass 在有界候选范围内验证海岸线、火山、葡萄园、河流、车站等
   OSM 标签约束；
@@ -183,9 +190,10 @@ SAKUGIS_QWEN_MAX_PROMPT_CHARS=48000 \
 - 公共服务超时或限流时，相应检查显示为“不可用”，不会推断为匹配。
 
 生产或批量场景可连接已导入 OSM 数据的 PostgreSQL + PostGIS。Geo Agents
-面板中的“PostGIS…”按钮会把 DSN 保存到 macOS 钥匙串；连接成功后使用
-`ST_Covers` 做行政区反查，使用 `ST_DWithin` / `ST_Distance` 做米制空间核验，
-失败时回退到 OSM 在线服务。数据库结构和导入要求见
+面板中的“PostGIS…”按钮会把 DSN 保存到 macOS 钥匙串；连接成功后先使用
+多语言名称的 `pg_trgm` 索引解析候选，再以 `ST_Covers` 做行政区反查，使用
+`ST_DWithin` / `ST_Distance` 做米制空间核验，失败时回退到 OSM 在线服务。
+数据库结构和导入要求见
 [`docs/postgis.md`](docs/postgis.md)。
 
 ## 界面与报告
@@ -213,6 +221,36 @@ Google Maps Tile API 官方文档中的受支持端点，其可用性和使用�
 确认；正式发布可替换为带 API Key 和会话令牌的官方 Map Tiles API。
 当 `mt2.google.cn` 在当前网络无法解析时，应用使用相同瓦片路径的
 `https://mt2.google.com` 作为兼容回退。
+
+## 测试与回归
+
+当前 50 项非 GUI 测试可使用系统 Python 执行：
+
+```bash
+PYTHONPATH=src python3 -m unittest discover -s tests -v
+```
+
+依赖 QGIS 的运行时检查：
+
+```bash
+./scripts/check-runtime.sh
+./scripts/check-agent-pipeline.py
+```
+
+需要进行可重复的真实多模态回归时，可提供包含本地图片路径、查询文本、基准
+坐标及 Top-1/Top-3 距离阈值的 JSON manifest：
+
+```bash
+PYTHONPATH=src python3 scripts/regression-multimodal.py \
+  --manifest /path/to/regression-manifest.json \
+  --output-dir ./regression-output \
+  --language zh_CN
+```
+
+2026-07-28 发布回归覆盖上海滨水城市（2 张照片）、富士山与五重塔（3 张
+照片）、Erg Chebbi 沙丘、杰古沙龙冰河湖和里约糖面包山。核心链路 5/5、
+联网增强 5/5 通过；最终一轮 17/17 个候选获得真实地点解析，18 次无状态千问
+请求重试为 0，并验证每张照片都贡献了视觉证据。
 
 ## 开发阶段运行
 

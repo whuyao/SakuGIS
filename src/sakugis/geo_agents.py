@@ -13,6 +13,7 @@ from sakugis.agent_models import (
     GeoAnalysisResult,
     clamp,
 )
+from sakugis.candidate_retrieval import HybridCandidateRetriever
 from sakugis.gis_models import CandidateGISResult
 from sakugis.gis_verifier import GISVerifier
 from sakugis.i18n import EN, get_language, tr
@@ -80,6 +81,7 @@ CANDIDATE_SYSTEM_PROMPT = """
       "longitude": 0.0,
       "initial_score": 0.0,
       "radius_km": 100.0,
+      "search_query": "适合在真实地名库中检索的正式地点、地区、国家",
       "evidence_ids": ["E1"],
       "rationale": "进入候选集的理由"
     }
@@ -89,6 +91,11 @@ CANDIDATE_SYSTEM_PROMPT = """
 都市圈内的近邻地点。initial_score 是未校准的相对检索分数，不是概率。
 多照片输入默认来自同一拍摄地点。候选必须同时解释尽可能多的照片，不得只依赖
 其中最容易识别的一张；理由中明确说明跨照片的一致性或冲突。
+每个候选必须是一个可在 OSM/Nominatim 中检索的单一具名实体，name 不得包含
+“或”“附近”“方向”“一带”等多个地点或模糊范围。search_query 必须使用该实体
+的官方英文名或拉丁字母罗马字名，并附城市、国家的英文名；不得使用中文翻译、
+视觉描述、括号备选名称或布尔条件。例如：
+"Arakurayama Sengen Park, Fujiyoshida, Japan"。
 """.strip()
 
 
@@ -127,9 +134,16 @@ class GeoAgentPipeline:
         self,
         client: Optional[QwenClient] = None,
         gis_verifier: Optional[GISVerifier] = None,
+        candidate_retriever: Optional[HybridCandidateRetriever] = None,
     ):
         self.client = client or QwenClient()
         self.gis_verifier = gis_verifier or GISVerifier()
+        self.candidate_retriever = candidate_retriever or (
+            HybridCandidateRetriever(
+                osm=getattr(self.gis_verifier, "osm", None),
+                postgis=getattr(self.gis_verifier, "postgis", None),
+            )
+        )
 
     def run(
         self,
@@ -151,7 +165,6 @@ class GeoAgentPipeline:
             for item in extract_photo_metadata(path):
                 item.evidence_id = f"{photo_id}-{item.evidence_id}"
                 item.photo_ids = [photo_id]
-                item.correlation_group = item.kind
                 local_evidence.append(item)
 
         self._progress(progress, 15, tr("progress.agent1"))
@@ -254,6 +267,28 @@ class GeoAgentPipeline:
                 else "候选生成 Agent 没有返回有效地点。"
             )
 
+        self._progress(progress, 46, tr("progress.retrieval"))
+        candidates, retrieval_backend, retrieval_resolved_count = (
+            self.candidate_retriever.resolve(
+                candidates,
+                progress=lambda current, total: self._progress(
+                    progress,
+                    46 + int(8 * current / max(1, total)),
+                    tr(
+                        "progress.retrieval_place",
+                        current=current,
+                        total=total,
+                    ),
+                ),
+            )
+        )
+        if not candidates:
+            raise ValueError(
+                "Place retrieval returned no usable candidates."
+                if get_language() == EN
+                else "真实地点检索没有返回可用候选。"
+            )
+
         spatial_constraints = plan_spatial_constraints(evidence, cleaned_query)
         self._progress(progress, 55, tr("progress.gis"))
         gis_results, gis_backend = self.gis_verifier.verify(
@@ -292,6 +327,8 @@ class GeoAgentPipeline:
             image_paths=paths,
             case_mode=case_mode,
             gis_backend=gis_backend,
+            retrieval_backend=retrieval_backend,
+            retrieval_resolved_count=retrieval_resolved_count,
             spatial_constraints=spatial_constraints,
         )
 
@@ -593,12 +630,31 @@ class GeoAgentPipeline:
             normalized_value = " ".join(
                 re.findall(r"[\w\u3400-\u9fff]+", item.value.casefold())
             )
-            key = (item.kind.casefold(), normalized_value)
+            normalized_group = " ".join(
+                re.findall(
+                    r"[\w\u3400-\u9fff]+",
+                    item.correlation_group.casefold(),
+                )
+            )
+            key = (
+                item.kind.casefold(),
+                f"group:{normalized_group}"
+                if normalized_group
+                else f"value:{normalized_value}",
+            )
             existing = by_content.get(key)
             if existing is not None:
+                previous_reliability = existing.reliability
                 existing.reliability = max(
                     existing.reliability, item.reliability
                 )
+                if (
+                    item.reliability > previous_reliability
+                    and item.value.strip()
+                ):
+                    existing.value = item.value
+                    existing.source = item.source
+                    existing.scale = item.scale
                 existing.supports = list(
                     dict.fromkeys(existing.supports + item.supports)
                 )
@@ -628,9 +684,17 @@ class GeoAgentPipeline:
             if not isinstance(item, dict):
                 continue
             try:
-                parsed.append(Candidate.from_dict(item, index))
+                candidate = Candidate.from_dict(item, index)
             except ValueError:
                 continue
+            if re.search(
+                r"(?:或|附近|方向|一带|周边|远距离)|"
+                r"\b(?:or|nearby|vicinity)\b",
+                candidate.name,
+                flags=re.IGNORECASE,
+            ):
+                continue
+            parsed.append(candidate)
         return select_diverse_candidates(parsed, limit=8)
 
     @staticmethod

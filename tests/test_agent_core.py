@@ -5,7 +5,8 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sakugis.agent_models import Candidate, Evidence
+from sakugis.agent_models import Candidate, Evidence, RetrievedPlace
+from sakugis.candidate_retrieval import HybridCandidateRetriever
 from sakugis.credentials import load_profile_csv
 from sakugis.geo_agents import GeoAgentPipeline
 from sakugis.gis_models import CandidateGISResult, GISCheck, ReversePlace
@@ -122,6 +123,18 @@ class RecordingQwenClient(QwenClient):
         return {"choices": [{"message": {"content": '{"ok":true}'}}]}
 
 
+class RetryingQwenClient(RecordingQwenClient):
+    def _post(self, route, payload):
+        self.payloads.append((route, payload.copy()))
+        if len(self.payloads) == 1:
+            return {
+                "choices": [
+                    {"message": {"content": '{"items":["incomplete"'}}
+                ]
+            }
+        return {"choices": [{"message": {"content": '{"ok":true}'}}]}
+
+
 class FakeGISVerifier:
     def verify(self, candidates, constraints, progress=None):
         results = {}
@@ -157,6 +170,51 @@ class FakeGISVerifier:
         return results, "fake-postgis"
 
 
+class FakeCandidateRetriever:
+    def resolve(self, candidates, progress=None):
+        resolved = list(candidates)
+        for index, candidate in enumerate(resolved, 1):
+            if progress:
+                progress(index, len(resolved))
+            candidate.retrieval_verified = True
+            candidate.retrieval_source = "fake place index"
+            candidate.retrieval_label = candidate.name
+            candidate.retrieval_score = candidate.initial_score
+        return resolved, "fake place index", len(resolved)
+
+
+class FakePlaceOSM:
+    def __init__(self, places, reverse_place=None):
+        self.places = places
+        self.reverse_place = reverse_place
+        self.queries = []
+        self.reverse_queries = []
+
+    def search_places(self, query_text, language="en", limit=3):
+        self.queries.append((query_text, language, limit))
+        return list(self.places)
+
+    def reverse_place_record(
+        self, latitude, longitude, language="en,zh-CN"
+    ):
+        self.reverse_queries.append((latitude, longitude, language))
+        return self.reverse_place
+
+
+class DisabledPostGIS:
+    enabled = False
+
+
+class FakePlacePostGIS:
+    enabled = True
+
+    def __init__(self, places):
+        self.places = places
+
+    def search_places(self, query_text, limit=3):
+        return list(self.places)
+
+
 class AgentCoreTests(unittest.TestCase):
     def test_extracts_fenced_json(self):
         self.assertEqual(
@@ -168,9 +226,36 @@ class AgentCoreTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             Candidate.from_dict({"latitude": 91, "longitude": 0}, 0)
 
+    def test_agent2_drops_ambiguous_non_place_candidates(self):
+        candidates = GeoAgentPipeline._parse_candidates(
+            {
+                "candidates": [
+                    {
+                        "name": "箱根公园或附近寺庙",
+                        "country": "日本",
+                        "latitude": 35.2,
+                        "longitude": 139.0,
+                        "initial_score": 0.9,
+                    },
+                    {
+                        "name": "新仓山浅间公园",
+                        "country": "日本",
+                        "latitude": 35.5,
+                        "longitude": 138.8,
+                        "initial_score": 0.8,
+                    },
+                ]
+            }
+        )
+
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0].name, "新仓山浅间公园")
+
     def test_pipeline_runs_three_agents_and_marks_result_uncalibrated(self):
         client = FakeQwenClient()
-        result = GeoAgentPipeline(client, FakeGISVerifier()).run(
+        result = GeoAgentPipeline(
+            client, FakeGISVerifier(), FakeCandidateRetriever()
+        ).run(
             query="寻找左侧通行且临海的城市"
         )
         self.assertEqual(len(client.calls), 3)
@@ -183,6 +268,8 @@ class AgentCoreTests(unittest.TestCase):
         self.assertAlmostEqual(result.candidates[0].ranking_score, 0.7478)
         self.assertEqual(result.confidence_status, "uncalibrated")
         self.assertEqual(result.gis_backend, "fake-postgis")
+        self.assertEqual(result.retrieval_backend, "fake place index")
+        self.assertEqual(result.retrieval_resolved_count, 1)
         self.assertTrue(result.candidates[0].gis_verified)
         self.assertEqual(result.candidates[0].gis_coverage, 1.0)
 
@@ -202,7 +289,9 @@ class AgentCoreTests(unittest.TestCase):
     def test_pipeline_jointly_scores_multiple_case_photos(self):
         client = FakeQwenClient()
         paths = ["/tmp/case-a.jpg", "/tmp/case-b.jpg"]
-        result = GeoAgentPipeline(client, FakeGISVerifier()).run(
+        result = GeoAgentPipeline(
+            client, FakeGISVerifier(), FakeCandidateRetriever()
+        ).run(
             image_paths=paths,
             query="这两张照片拍摄于同一地点",
         )
@@ -221,6 +310,315 @@ class AgentCoreTests(unittest.TestCase):
         self.assertEqual(candidate.photo_total_count, 2)
         self.assertEqual(candidate.photo_consistency, 1.0)
         self.assertIn("跨照片覆盖", build_markdown_report(result))
+
+    def test_real_place_retrieval_replaces_model_coordinates(self):
+        candidate = Candidate.from_dict(
+            {
+                "id": "C1",
+                "name": "新仓山浅间公园",
+                "country": "日本",
+                "country_code": "JP",
+                "region": "富士吉田市",
+                "latitude": 35.49,
+                "longitude": 138.79,
+                "initial_score": 0.82,
+                "radius_km": 20,
+                "search_query": "Arakurayama Sengen Park, Japan",
+            },
+            0,
+        )
+        wrong_country = RetrievedPlace(
+            name="Sengen Park",
+            display_name="Sengen Park, California, United States",
+            country="United States",
+            country_code="US",
+            region="California",
+            latitude=34.0,
+            longitude=-118.0,
+            source="OSM Nominatim",
+            source_id="node/1",
+            importance=0.8,
+        )
+        correct = RetrievedPlace(
+            name="新仓山浅间公园",
+            display_name="新仓山浅间公园, 富士吉田市, 山梨県, 日本",
+            country="日本",
+            country_code="JP",
+            region="山梨県",
+            latitude=35.5013,
+            longitude=138.8014,
+            source="OSM Nominatim",
+            source_id="way/2",
+            importance=0.7,
+        )
+        osm = FakePlaceOSM([wrong_country, correct])
+        retriever = HybridCandidateRetriever(
+            osm=osm,
+            postgis=DisabledPostGIS(),
+        )
+
+        candidates, backend, resolved_count = retriever.resolve([candidate])
+
+        self.assertEqual(resolved_count, 1)
+        self.assertEqual(backend, "OSM Nominatim")
+        self.assertAlmostEqual(candidates[0].latitude, 35.5013)
+        self.assertAlmostEqual(candidates[0].longitude, 138.8014)
+        self.assertTrue(candidates[0].retrieval_verified)
+        self.assertEqual(candidates[0].retrieval_source_id, "way/2")
+        self.assertIn("Arakurayama", osm.queries[0][0])
+
+    def test_low_similarity_postgis_hit_falls_back_to_nominatim(self):
+        candidate = Candidate.from_dict(
+            {
+                "name": "新仓山浅间公园",
+                "country": "日本",
+                "country_code": "JP",
+                "region": "富士吉田市",
+                "latitude": 35.49,
+                "longitude": 138.79,
+                "initial_score": 0.82,
+                "radius_km": 20,
+            },
+            0,
+        )
+        wrong = RetrievedPlace(
+            name="Sengen Park",
+            display_name="Sengen Park, United States",
+            country="United States",
+            country_code="US",
+            region="California",
+            latitude=34.0,
+            longitude=-118.0,
+            source="PostGIS OSM index",
+        )
+        correct = RetrievedPlace(
+            name="新倉山浅間公園",
+            display_name="新倉山浅間公園, 山梨県, 日本",
+            country="日本",
+            country_code="JP",
+            region="山梨県",
+            latitude=35.50049,
+            longitude=138.80082,
+            source="OSM Nominatim",
+        )
+        retriever = HybridCandidateRetriever(
+            osm=FakePlaceOSM([correct]),
+            postgis=FakePlacePostGIS([wrong]),
+        )
+
+        candidates, backend, resolved_count = retriever.resolve([candidate])
+
+        self.assertEqual(resolved_count, 1)
+        self.assertIn("PostGIS OSM index", backend)
+        self.assertIn("OSM Nominatim", backend)
+        self.assertEqual(candidates[0].retrieval_source, "OSM Nominatim")
+        self.assertAlmostEqual(candidates[0].latitude, 35.50049)
+
+    def test_failed_alias_search_falls_back_to_reverse_place_record(self):
+        candidate = Candidate.from_dict(
+            {
+                "name": "北外滩滨江绿地",
+                "country": "中国",
+                "country_code": "CN",
+                "region": "上海市虹口区",
+                "latitude": 31.2456,
+                "longitude": 121.4985,
+                "initial_score": 0.82,
+                "radius_km": 20,
+            },
+            0,
+        )
+        reverse_place = RetrievedPlace(
+            name="上海白玉兰广场",
+            display_name="上海白玉兰广场, 虹口区, 上海市, 中国",
+            country="中国",
+            country_code="CN",
+            region="上海市",
+            latitude=31.24555,
+            longitude=121.49861,
+            source="OSM Nominatim reverse",
+            source_id="way/1234",
+            importance=0.62,
+        )
+        osm = FakePlaceOSM([], reverse_place=reverse_place)
+        retriever = HybridCandidateRetriever(
+            osm=osm,
+            postgis=DisabledPostGIS(),
+        )
+
+        candidates, backend, resolved_count = retriever.resolve([candidate])
+
+        self.assertEqual(resolved_count, 1)
+        self.assertEqual(
+            candidates[0].retrieval_source, "OSM Nominatim reverse"
+        )
+        self.assertEqual(candidates[0].retrieval_source_id, "way/1234")
+        self.assertTrue(candidates[0].retrieval_verified)
+        self.assertIn("OSM Nominatim reverse", backend)
+        self.assertEqual(
+            osm.reverse_queries[0][:2], (31.2456, 121.4985)
+        )
+
+    def test_far_same_country_text_hit_cannot_override_model_region(self):
+        candidate = Candidate.from_dict(
+            {
+                "name": "北外滩滨江绿地",
+                "country": "中国",
+                "country_code": "CN",
+                "region": "上海市虹口区",
+                "latitude": 31.2456,
+                "longitude": 121.4985,
+                "initial_score": 0.82,
+                "radius_km": 20,
+            },
+            0,
+        )
+        far_wrong = RetrievedPlace(
+            name="东北农业大学",
+            display_name="东北农业大学, 哈尔滨市, 黑龙江省, 中国",
+            country="中国",
+            country_code="CN",
+            region="黑龙江省",
+            latitude=45.742,
+            longitude=126.727,
+            source="OSM Nominatim",
+            source_id="way/99",
+            importance=0.66,
+        )
+        local_reverse = RetrievedPlace(
+            name="上海白玉兰广场",
+            display_name="上海白玉兰广场, 虹口区, 上海市, 中国",
+            country="中国",
+            country_code="CN",
+            region="上海市",
+            latitude=31.24555,
+            longitude=121.49861,
+            source="OSM Nominatim reverse",
+            source_id="way/1234",
+            importance=0.62,
+        )
+        osm = FakePlaceOSM([far_wrong], reverse_place=local_reverse)
+        retriever = HybridCandidateRetriever(
+            osm=osm,
+            postgis=DisabledPostGIS(),
+        )
+
+        candidates, _, resolved_count = retriever.resolve([candidate])
+
+        self.assertEqual(resolved_count, 1)
+        self.assertEqual(
+            candidates[0].retrieval_source, "OSM Nominatim reverse"
+        )
+        self.assertEqual(candidates[0].retrieval_source_id, "way/1234")
+
+    def test_cross_photo_correlation_group_merges_different_wording(self):
+        evidence = GeoAgentPipeline._parse_evidence(
+            {
+                "evidence": [
+                    {
+                        "id": "P1-E1",
+                        "kind": "landmark",
+                        "value": "红白相间的五层塔",
+                        "reliability": 0.78,
+                        "photo_ids": ["P1"],
+                        "correlation_group": "five-storey-pagoda",
+                    },
+                    {
+                        "id": "P2-E1",
+                        "kind": "landmark",
+                        "value": "山坡上的五重塔",
+                        "reliability": 0.91,
+                        "photo_ids": ["P2"],
+                        "correlation_group": "five-storey-pagoda",
+                    },
+                ]
+            },
+            [],
+        )
+
+        self.assertEqual(len(evidence), 1)
+        self.assertEqual(evidence[0].photo_ids, ["P1", "P2"])
+        self.assertEqual(evidence[0].value, "山坡上的五重塔")
+        self.assertAlmostEqual(evidence[0].reliability, 0.91)
+
+    def test_nominatim_search_record_is_structured(self):
+        place = OSMServices._search_place(
+            {
+                "lat": "35.5013",
+                "lon": "138.8014",
+                "display_name": "新仓山浅间公园, 富士吉田市, 日本",
+                "namedetails": {"name": "新仓山浅间公园"},
+                "address": {
+                    "country": "日本",
+                    "country_code": "jp",
+                    "state": "山梨県",
+                },
+                "osm_type": "way",
+                "osm_id": 123,
+                "importance": 0.72,
+            }
+        )
+
+        self.assertIsNotNone(place)
+        self.assertEqual(place.country_code, "JP")
+        self.assertEqual(place.region, "山梨県")
+        self.assertEqual(place.source_id, "way/123")
+
+    def test_nominatim_reverse_record_uses_real_source_identity(self):
+        place = OSMServices._search_place(
+            {
+                "lat": "31.24555",
+                "lon": "121.49861",
+                "display_name": "上海白玉兰广场, 虹口区, 上海市, 中国",
+                "namedetails": {"name": "上海白玉兰广场"},
+                "address": {
+                    "country": "中国",
+                    "country_code": "cn",
+                    "state": "上海市",
+                },
+                "osm_type": "way",
+                "osm_id": 1234,
+                "importance": 0.62,
+            }
+        )
+
+        self.assertIsNotNone(place)
+        self.assertEqual(place.source_id, "way/1234")
+        self.assertAlmostEqual(place.latitude, 31.24555)
+
+    def test_reverse_lookup_preserves_the_verified_query_coordinate(self):
+        class MemoryCache:
+            def get(self, namespace, key, ttl_seconds):
+                return {
+                    "lat": "64.2333478",
+                    "lon": "-16.3826106",
+                    "display_name": (
+                        "Sveitarfélagið Hornafjörður, Iceland"
+                    ),
+                    "namedetails": {
+                        "name": "Sveitarfélagið Hornafjörður"
+                    },
+                    "address": {
+                        "country": "Iceland",
+                        "country_code": "is",
+                        "state": "Southern Region",
+                    },
+                    "osm_type": "relation",
+                    "osm_id": 55966,
+                }
+
+            def set(self, namespace, key, value):
+                raise AssertionError("cached test must not write")
+
+        osm = OSMServices(cache=MemoryCache())
+
+        place = osm.reverse_place_record(64.0784, -16.2306)
+
+        self.assertIsNotNone(place)
+        self.assertAlmostEqual(place.latitude, 64.0784)
+        self.assertAlmostEqual(place.longitude, -16.2306)
+        self.assertEqual(place.source_id, "relation/55966")
+        self.assertEqual(place.source, "OSM Nominatim reverse")
 
     def test_qwen_requests_are_stateless_between_location_runs(self):
         client = RecordingQwenClient()
@@ -244,6 +642,23 @@ class AgentCoreTests(unittest.TestCase):
         with self.assertRaises(QwenApiError):
             client.chat_json("s" * 80, "u" * 80)
         self.assertEqual(client.payloads, [])
+
+    def test_qwen_retries_incomplete_json_once_without_history(self):
+        client = RetryingQwenClient()
+
+        result = client.chat_json(
+            "return JSON",
+            "test input",
+            max_tokens=3072,
+        )
+
+        self.assertEqual(result, {"ok": True})
+        self.assertEqual(len(client.payloads), 2)
+        retry_payload = client.payloads[1][1]
+        self.assertEqual(len(retry_payload["messages"]), 2)
+        self.assertEqual(retry_payload["temperature"], 0)
+        self.assertEqual(retry_payload["max_tokens"], 4096)
+        self.assertEqual(client.last_request_stats["retry_count"], 1)
 
     def test_multi_image_resize_policy_is_defensive(self):
         self.assertEqual(_image_dimension_for_count(1), 2048)
@@ -691,7 +1106,7 @@ class AgentCoreTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "profile.csv"
             path.write_text(
-                "apiKey,sk-test-abcdefghijklmnopqrstuvwxyz\n"
+                "apiKey,test-api-key-not-a-secret\n"
                 "openAiCompatible,https://example.invalid/compatible-mode/v1\n"
                 "workspaceId,ws-example\n",
                 encoding="utf-8",
