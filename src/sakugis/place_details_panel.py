@@ -35,6 +35,8 @@ from sakugis.place_search import (
     PlaceDetails,
     PlaceImageResult,
     PlaceSearchError,
+    has_named_gis_identity,
+    has_online_place_material,
 )
 
 
@@ -47,6 +49,9 @@ class PlaceDetailsSignals(QObject):
 
 class PlaceDetailsPanel(QWidget):
     """Shows local GIS evidence immediately, then enriches it asynchronously."""
+
+    contentAvailable = pyqtSignal(object)
+    contentUnavailable = pyqtSignal(object, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -148,6 +153,8 @@ class PlaceDetailsPanel(QWidget):
     def set_candidate(
         self, candidate: Candidate, force_refresh: bool = False
     ) -> None:
+        self._request_id += 1
+        self._cancel_jobs()
         self._candidate = candidate
         self._details = None
         self.title_label.setText(candidate.name or tr("place.unnamed"))
@@ -180,6 +187,11 @@ class PlaceDetailsPanel(QWidget):
         self._render_overview()
         self._clear_photos()
         self._render_sources()
+        if not has_named_gis_identity(candidate):
+            self.status_label.setText(tr("place.hidden.gis_identity"))
+            self.refresh_button.setEnabled(False)
+            self.contentUnavailable.emit(candidate, "gis_identity")
+            return
         self.refresh(force_refresh=force_refresh)
 
     def refresh(self, force_refresh: bool = False) -> None:
@@ -187,9 +199,11 @@ class PlaceDetailsPanel(QWidget):
             return
         if os.environ.get("SAKUGIS_SMOKE_DISABLE_PLACE_SEARCH") == "1":
             self.status_label.setText(tr("place.local_only"))
+            self.contentUnavailable.emit(self._candidate, "local_only")
             return
         if not has_brave_api_key():
             self.status_label.setText(tr("place.key_missing"))
+            self.contentUnavailable.emit(self._candidate, "key_missing")
             return
         self._start_search(force_refresh)
 
@@ -198,8 +212,7 @@ class PlaceDetailsPanel(QWidget):
             return
         self._request_id += 1
         request_id = self._request_id
-        for _future, cancellation in self._jobs.values():
-            cancellation.set()
+        self._cancel_jobs()
         self.status_label.setText(tr("place.loading"))
         self.refresh_button.setEnabled(False)
         cancellation = threading.Event()
@@ -265,6 +278,16 @@ class PlaceDetailsPanel(QWidget):
         if request_id != self._request_id:
             return
         self._details = details
+        if not has_online_place_material(details):
+            self.status_label.setText(tr("place.hidden.no_material"))
+            self._render_overview()
+            self._render_photos(details)
+            self._render_sources()
+            if self._candidate is not None:
+                self.contentUnavailable.emit(
+                    self._candidate, "no_material"
+                )
+            return
         self._render_overview()
         self._render_photos(details)
         self._render_sources()
@@ -286,6 +309,8 @@ class PlaceDetailsPanel(QWidget):
                     photos=len(details.images),
                 )
             )
+        if self._candidate is not None:
+            self.contentAvailable.emit(self._candidate)
 
     @pyqtSlot(int, int, object)
     def _on_thumbnail_ready(
@@ -306,6 +331,8 @@ class PlaceDetailsPanel(QWidget):
         if request_id != self._request_id:
             return
         self.status_label.setText(tr(f"place.error.{code}"))
+        if self._candidate is not None:
+            self.contentUnavailable.emit(self._candidate, "search_failed")
 
     @pyqtSlot(int)
     def _on_finished(self, request_id: int) -> None:
@@ -447,6 +474,10 @@ class PlaceDetailsPanel(QWidget):
         self._clear_photos()
         self._render_sources()
 
+    def _cancel_jobs(self) -> None:
+        for _future, cancellation in self._jobs.values():
+            cancellation.set()
+
     def retranslate_ui(self) -> None:
         self.eyebrow.setText(tr("place.eyebrow"))
         self.refresh_button.setText(tr("place.refresh"))
@@ -462,8 +493,7 @@ class PlaceDetailsPanel(QWidget):
         if self._shutdown:
             return
         self._shutdown = True
-        for _future, cancellation in list(self._jobs.values()):
-            cancellation.set()
+        self._cancel_jobs()
         self._executor.shutdown(wait=True, cancel_futures=True)
         self._jobs.clear()
 

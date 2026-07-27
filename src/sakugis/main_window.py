@@ -7,7 +7,7 @@ from datetime import datetime
 import re
 from typing import Optional
 
-from qgis.PyQt.QtCore import QTimer, Qt, QVariant
+from qgis.PyQt.QtCore import QPoint, QTimer, Qt, QVariant
 from qgis.PyQt.QtGui import QColor, QKeySequence
 from qgis.PyQt.QtWidgets import (
     QAction,
@@ -86,6 +86,17 @@ class CandidatePanTool(QgsMapToolPan):
             self._click_callback(event.mapPoint())
 
 
+def _setting_bool(value, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    normalized = str(value or "").strip().casefold()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -102,6 +113,7 @@ class MainWindow(QMainWindow):
         self._coordinate_display = None
         self._current_scale = None
         self._candidates_by_id = {}
+        self._place_details_available = False
 
         self.project = QgsProject.instance()
         self._shutting_down = False
@@ -154,19 +166,40 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.RightDockWidgetArea, self.agent_dock)
 
         self.place_details_panel = PlaceDetailsPanel(self)
+        self.place_details_panel.contentAvailable.connect(
+            self._on_place_details_available
+        )
+        self.place_details_panel.contentUnavailable.connect(
+            self._on_place_details_unavailable
+        )
         self.place_details_dock = QDockWidget(
             tr("dock.place_details"), self
         )
         self.place_details_dock.setObjectName("placeDetailsDock")
         self.place_details_dock.setAllowedAreas(
-            Qt.BottomDockWidgetArea | Qt.TopDockWidgetArea
+            Qt.LeftDockWidgetArea
+            | Qt.RightDockWidgetArea
+            | Qt.BottomDockWidgetArea
+            | Qt.TopDockWidgetArea
+        )
+        self.place_details_dock.setFeatures(
+            QDockWidget.DockWidgetClosable
+            | QDockWidget.DockWidgetMovable
+            | QDockWidget.DockWidgetFloatable
         )
         self.place_details_dock.setWidget(self.place_details_panel)
-        self.place_details_dock.setMinimumHeight(220)
+        self.place_details_dock.setMinimumSize(440, 260)
         self.addDockWidget(
             Qt.BottomDockWidgetArea, self.place_details_dock
         )
         self.place_details_dock.hide()
+        self.place_details_dock.toggleViewAction().setEnabled(False)
+        self.place_details_dock.topLevelChanged.connect(
+            self._place_details_top_level_changed
+        )
+        self.place_details_dock.visibilityChanged.connect(
+            self._place_details_visibility_changed
+        )
 
         self.bridge = QgsLayerTreeMapCanvasBridge(
             self.project.layerTreeRoot(), self.canvas, self
@@ -1162,14 +1195,106 @@ class MainWindow(QMainWindow):
     def show_candidate_details(self, candidate: Candidate) -> None:
         if not isinstance(candidate, Candidate):
             return
+        if self.place_details_dock.isVisible():
+            self._save_place_details_geometry()
+        self._place_details_available = False
+        self.place_details_dock.toggleViewAction().setEnabled(False)
+        self.place_details_dock.hide()
+        self.statusBar().showMessage(tr("place.checking"), 5000)
         self.place_details_panel.set_candidate(candidate)
+
+    def _on_place_details_available(self, candidate: Candidate) -> None:
+        current = self.place_details_panel.current_candidate()
+        if (
+            current is None
+            or current.candidate_id != candidate.candidate_id
+        ):
+            return
+        self._place_details_available = True
+        action = self.place_details_dock.toggleViewAction()
+        action.setEnabled(True)
+        settings = QgsSettings()
+        floating = _setting_bool(
+            settings.value(
+                "sakugis/ui/place-details-floating",
+                True,
+            ),
+            True,
+        )
+        self.place_details_dock.setFloating(floating)
+        if floating:
+            geometry = settings.value(
+                "sakugis/ui/place-details-geometry"
+            )
+            restored = False
+            if geometry:
+                try:
+                    restored = bool(
+                        self.place_details_dock.restoreGeometry(geometry)
+                    )
+                except (TypeError, ValueError):
+                    restored = False
+            if not restored:
+                width, height = 760, 500
+                self.place_details_dock.resize(width, height)
+                self.place_details_dock.move(
+                    self.mapToGlobal(
+                        QPoint(
+                            max(24, (self.width() - width) // 2),
+                            max(64, (self.height() - height) // 2),
+                        )
+                    )
+                )
+        else:
+            self.resizeDocks(
+                [self.place_details_dock],
+                [320],
+                Qt.Vertical,
+            )
         self.place_details_dock.show()
         self.place_details_dock.raise_()
-        self.resizeDocks(
-            [self.place_details_dock],
-            [300],
-            Qt.Vertical,
+        self.statusBar().showMessage(tr("place.available"), 3500)
+
+    def _on_place_details_unavailable(
+        self, candidate: Candidate, reason: str
+    ) -> None:
+        current = self.place_details_panel.current_candidate()
+        if (
+            current is None
+            or current.candidate_id != candidate.candidate_id
+        ):
+            return
+        self._place_details_available = False
+        self.place_details_dock.toggleViewAction().setEnabled(False)
+        self.place_details_dock.hide()
+        key = {
+            "gis_identity": "place.hidden.gis_identity",
+            "no_material": "place.hidden.no_material",
+            "key_missing": "place.hidden.key_missing",
+            "local_only": "place.hidden.local_only",
+        }.get(reason, "place.hidden.search_failed")
+        self.statusBar().showMessage(tr(key), 6000)
+
+    def _place_details_top_level_changed(self, floating: bool) -> None:
+        if floating:
+            self.place_details_dock.setMinimumSize(620, 400)
+        else:
+            self.place_details_dock.setMinimumSize(440, 260)
+        QgsSettings().setValue(
+            "sakugis/ui/place-details-floating",
+            bool(floating),
         )
+
+    def _place_details_visibility_changed(self, visible: bool) -> None:
+        if not visible:
+            self._save_place_details_geometry()
+
+    def _save_place_details_geometry(self) -> None:
+        if self.place_details_dock.isFloating():
+            QgsSettings().setValue(
+                "sakugis/ui/place-details-geometry",
+                self.place_details_dock.saveGeometry(),
+            )
 
     def _select_candidate_at_map_point(self, point) -> None:
         candidate = self._nearest_candidate(point)
@@ -1265,6 +1390,7 @@ class MainWindow(QMainWindow):
         if self._shutting_down:
             return
         self._shutting_down = True
+        self._save_place_details_geometry()
         self.place_details_panel.shutdown()
         try:
             self.project.layerTreeRoot().visibilityChanged.disconnect(

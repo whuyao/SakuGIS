@@ -430,6 +430,44 @@ def parse_image_results(payload: Dict[str, Any]) -> List[PlaceImageResult]:
     return results
 
 
+def has_named_gis_identity(candidate: Candidate) -> bool:
+    """Require a named, positively verified GIS identity before enrichment."""
+
+    name = " ".join(str(candidate.name or "").split()).casefold()
+    reverse_label = " ".join(
+        str(candidate.reverse_label or "").split()
+    )
+    placeholder_names = {
+        "",
+        "candidate",
+        "unknown",
+        "unnamed",
+        "unnamed place",
+        "候选",
+        "未知",
+        "未命名",
+        "未命名地点",
+    }
+    if (
+        name in placeholder_names
+        or not reverse_label
+        or not candidate.gis_verified
+    ):
+        return False
+    return any(
+        check.matched is True
+        and bool(str(check.detail or check.label or "").strip())
+        and "unavailable" not in str(check.source or "").casefold()
+        for check in candidate.gis_checks
+    )
+
+
+def has_online_place_material(details: PlaceDetails) -> bool:
+    """Return whether Brave found anything useful enough to show."""
+
+    return bool(details.web_results or details.images)
+
+
 def _looks_like_non_place_image(
     title: str, page_url: str, source: str
 ) -> bool:

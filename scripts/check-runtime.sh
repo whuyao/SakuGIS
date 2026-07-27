@@ -69,7 +69,13 @@ fi
 import os
 
 from qgis.PyQt.QtCore import QTimer
-from qgis.core import Qgis, QgsApplication, QgsProviderRegistry, QgsRasterLayer
+from qgis.core import (
+    Qgis,
+    QgsApplication,
+    QgsProviderRegistry,
+    QgsRasterLayer,
+    QgsSettings,
+)
 
 if os.environ.get("SAKUGIS_SMOKE_AGENT_RESULT") == "1":
     os.environ.setdefault("SAKUGIS_SMOKE_DISABLE_PLACE_SEARCH", "1")
@@ -82,6 +88,19 @@ QgsProviderRegistry.instance(__import__("os").environ["QGIS_PLUGIN_PATH"])
 app.initQgis()
 QgsApplication.setPkgDataPath(__import__("os").environ["QGIS_PKG_DATA_PATH"])
 QgsApplication.setPluginPath(__import__("os").environ["QGIS_PLUGIN_PATH"])
+
+place_setting_keys = (
+    "sakugis/ui/place-details-floating",
+    "sakugis/ui/place-details-geometry",
+)
+place_settings = QgsSettings()
+place_setting_snapshot = {
+    key: (
+        place_settings.contains(key),
+        place_settings.value(key),
+    )
+    for key in place_setting_keys
+}
 
 from sakugis.ui_theme import apply_theme
 
@@ -314,13 +333,20 @@ if os.environ.get("SAKUGIS_SMOKE_AGENT_RESULT") == "1":
     window.layer_panel.view.setCurrentLayer(sample_candidate_layers[0])
     app.processEvents()
     selected_candidate = sample_result.candidates[0]
-    if not window.place_details_dock.isVisible():
-        raise SystemExit("Candidate details dock did not open")
+    if window.place_details_dock.isVisible():
+        raise SystemExit("Candidate details opened without online material")
     if (
         window.place_details_panel.current_candidate().candidate_id
         != selected_candidate.candidate_id
     ):
         raise SystemExit("Candidate details did not follow layer selection")
+    QgsSettings().setValue("sakugis/ui/place-details-floating", True)
+    window._on_place_details_available(selected_candidate)
+    app.processEvents()
+    if not window.place_details_dock.isVisible():
+        raise SystemExit("Qualified candidate details did not open")
+    if not window.place_details_dock.isFloating():
+        raise SystemExit("Candidate details did not open as a floating window")
     destination_point = QgsCoordinateTransform(
         QgsCoordinateReferenceSystem("EPSG:4326"),
         window.canvas.mapSettings().destinationCrs(),
@@ -342,6 +368,8 @@ if os.environ.get("SAKUGIS_SMOKE_AGENT_RESULT") == "1":
     window._set_language("zh_CN")
     if window.place_details_panel.tabs.tabText(1) != "网络照片":
         raise SystemExit("Chinese place details translation did not apply")
+    print("Candidate details availability gate: OK")
+    print("Candidate details floating window: OK")
     print("Candidate details list/layer/map linkage: OK")
     print("Candidate details Chinese/English switch: OK")
     window._refresh_attribution()
@@ -383,5 +411,10 @@ app.exec_()
 print("Main window smoke test: OK")
 
 window.prepare_for_shutdown()
+for key, (existed, value) in place_setting_snapshot.items():
+    if existed:
+        place_settings.setValue(key, value)
+    else:
+        place_settings.remove(key)
 app.exitQgis()
 PY

@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from sakugis.agent_models import Candidate
+from sakugis.gis_models import GISCheck
 from sakugis.credentials import get_brave_api_key
 from sakugis.i18n import set_language, tr
 from sakugis.place_search import (
@@ -12,7 +13,12 @@ from sakugis.place_search import (
     BraveSearchClient,
     MemoryPlaceCache,
     PlaceSearchError,
+    PlaceDetails,
+    PlaceImageResult,
+    PlaceWebResult,
     build_place_query,
+    has_named_gis_identity,
+    has_online_place_material,
     parse_image_results,
     parse_web_results,
 )
@@ -54,6 +60,60 @@ class FakeSearchClient(BraveSearchClient):
 
 
 class PlaceSearchTests(unittest.TestCase):
+    def test_gis_identity_requires_named_positive_verification(self):
+        candidate = sample_candidate(
+            gis_verified=True,
+            gis_checks=[
+                GISCheck(
+                    check_id="reverse_locality",
+                    kind="reverse_geocode",
+                    label="reverse-geocoded locality",
+                    matched=True,
+                    source="OSM Nominatim",
+                    detail="武汉市",
+                )
+            ],
+        )
+        self.assertTrue(has_named_gis_identity(candidate))
+        candidate.reverse_label = ""
+        self.assertFalse(has_named_gis_identity(candidate))
+        candidate.reverse_label = "Wuhan, China"
+        candidate.gis_checks[0].matched = False
+        self.assertFalse(has_named_gis_identity(candidate))
+
+    def test_online_material_requires_web_or_image_result(self):
+        empty = PlaceDetails(candidate_id="C1", query="test")
+        self.assertFalse(has_online_place_material(empty))
+        with_web = PlaceDetails(
+            candidate_id="C1",
+            query="test",
+            web_results=[
+                PlaceWebResult(
+                    title="Place",
+                    url="https://example.com/place",
+                    description="A verified place description.",
+                    source="Example",
+                )
+            ],
+        )
+        self.assertTrue(has_online_place_material(with_web))
+        with_image = PlaceDetails(
+            candidate_id="C1",
+            query="test",
+            images=[
+                PlaceImageResult(
+                    title="Place photo",
+                    page_url="https://example.com/photo",
+                    thumbnail_url=(
+                        "https://imgs.search.brave.com/photo.jpg"
+                    ),
+                    original_url="https://example.com/photo.jpg",
+                    source="Example",
+                )
+            ],
+        )
+        self.assertTrue(has_online_place_material(with_image))
+
     def test_query_is_bounded_and_prefers_selected_language(self):
         candidate = sample_candidate(
             name="武汉 " * 80,
@@ -240,6 +300,9 @@ class PlaceSearchTests(unittest.TestCase):
             "place.refresh",
             "place.source_note",
             "place.error.network",
+            "place.hidden.gis_identity",
+            "place.hidden.no_material",
+            "place.hidden.search_failed",
         )
         try:
             for language in ("zh_CN", "en"):

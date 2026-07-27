@@ -34,9 +34,11 @@ Developed by the [UrbanComp team](https://urbancomp.net).
   `ST_DWithin`, and `ST_Distance`.
 - Expandable candidate layers and a click-to-compare panel with composite,
   evidence-review, cross-photo, GIS, and coverage signals.
-- Selecting a candidate row, layer, or map marker opens a details dock below
-  the map with local GIS evidence, Brave web descriptions, web photos, and
-  clickable original sources.
+- Selecting a candidate row, layer, or map marker opens a movable Place
+  Explorer window with local GIS evidence, Brave web descriptions, web
+  photos, and clickable original sources. It remains hidden unless the
+  candidate has both a named GIS identity and online material, and can be
+  resized or docked back into the main window.
 - Bilingual Markdown query reports with evidence, checks, sources, and
   uncertainty notes.
 
@@ -164,7 +166,10 @@ thumbnail bytes use only a short-lived in-memory session cache and are not
 persisted to disk. Image discovery expands the search pool, removes obvious
 retail, liquor, toy, model, and shopping-page noise, and limits repeated
 results from one source page to improve diversity. This filtering is heuristic
-and does not replace source review.
+and does not replace source review. The Place Explorer is shown only when GIS
+verification provides a named place identity and Brave returns at least one
+valid description or image; otherwise SakuGIS keeps the candidate on the map
+and displays only a brief no-results status message.
 
 Import a local Brave key text file into the macOS Keychain:
 

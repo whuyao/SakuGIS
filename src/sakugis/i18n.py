@@ -75,6 +75,14 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         ZH_CN: "正在检索地点介绍与照片…",
         EN: "Searching for place information and photos…",
     },
+    "place.checking": {
+        ZH_CN: "正在核验地点身份与网络资料…",
+        EN: "Checking the place identity and online material…",
+    },
+    "place.available": {
+        ZH_CN: "已打开地点搜索结果浮窗",
+        EN: "Opened the floating place-search results",
+    },
     "place.ready": {
         ZH_CN: "已找到 {web} 条介绍、{photos} 张照片",
         EN: "Found {web} descriptions and {photos} photos",
@@ -120,6 +128,26 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "place.key_missing": {
         ZH_CN: "未配置 Brave Search Key；当前仅显示本地 GIS 信息。",
         EN: "Brave Search Key is not configured; showing local GIS information only.",
+    },
+    "place.hidden.gis_identity": {
+        ZH_CN: "未找到具名 POI 或有效 GIS 地点说明，未显示搜索结果。",
+        EN: "No named POI or valid GIS place description was found; search results were not shown.",
+    },
+    "place.hidden.no_material": {
+        ZH_CN: "网上没有找到可展示的地点介绍或照片，未显示搜索结果。",
+        EN: "No displayable place information or photos were found online; search results were not shown.",
+    },
+    "place.hidden.key_missing": {
+        ZH_CN: "未配置 Brave Search Key，未显示网络搜索结果。",
+        EN: "Brave Search is not configured, so online results were not shown.",
+    },
+    "place.hidden.local_only": {
+        ZH_CN: "测试模式未执行网络检索，地点浮窗保持隐藏。",
+        EN: "Online search is disabled in test mode; the place window remains hidden.",
+    },
+    "place.hidden.search_failed": {
+        ZH_CN: "地点资料检索失败，未显示搜索结果；可以稍后重新选择候选重试。",
+        EN: "Place lookup failed, so results were not shown. Select the candidate again to retry later.",
     },
     "place.open_source": {
         ZH_CN: "打开原始网页",
