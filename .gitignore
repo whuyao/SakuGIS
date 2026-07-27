@@ -35,5 +35,6 @@ credentials*.json
 *.jpeg
 *.png
 *.webp
+!docs/images/*.webp
 *.mp4
 *.mov

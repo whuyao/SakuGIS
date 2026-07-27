@@ -32,6 +32,31 @@ QGIS 工程保存能力。由 [UrbanComp 团队](https://urbancomp.net)开发。
 - 深色“城市观测台”界面、首次使用引导、地图 HUD 和三阶段进度提示
 - 将完整查询、证据、候选与 GIS 核验导出为中英文 Markdown 报告
 
+## 界面截图
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/images/global-candidates.webp" alt="SakuGIS 全球候选位置">
+      <br><sub><b>全球候选位置</b>——生成具有地理多样性的假设，并作为可检查的 QGIS 图层展示。</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/images/osm-candidate-focus.webp" alt="SakuGIS OpenStreetMap 候选定位">
+      <br><sub><b>OSM 候选定位</b>——单击候选，从全球结果快速进入局部不确定性范围。</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/images/satellite-verification.webp" alt="SakuGIS 横滨卫星影像核验">
+      <br><sub><b>卫星影像核验</b>——不离开候选分析即可切换影像图层并检查空间环境。</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/images/gis-verification-detail.webp" alt="SakuGIS 开普敦 GIS 核验详情">
+      <br><sub><b>GIS 核验详情</b>——检查地点反查、空间约束、综合评分、覆盖率和数据来源。</sub>
+    </td>
+  </tr>
+</table>
+
 ## 开发环境
 
 - macOS 13 或更高版本

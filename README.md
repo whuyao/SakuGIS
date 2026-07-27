@@ -31,6 +31,31 @@ Developed by the [UrbanComp team](https://urbancomp.net).
 - Bilingual Markdown query reports with evidence, checks, sources, and
   uncertainty notes.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/images/global-candidates.webp" alt="SakuGIS global candidate search">
+      <br><sub><b>Global candidate search</b> — geographically diverse hypotheses remain visible as inspectable QGIS layers.</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/images/osm-candidate-focus.webp" alt="SakuGIS OpenStreetMap candidate focus">
+      <br><sub><b>OSM candidate focus</b> — select a candidate to navigate from the global result to its local uncertainty area.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/images/satellite-verification.webp" alt="SakuGIS satellite verification in Yokohama">
+      <br><sub><b>Satellite context</b> — switch imagery layers without leaving the candidate analysis.</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/images/gis-verification-detail.webp" alt="SakuGIS GIS verification details in Cape Town">
+      <br><sub><b>GIS verification details</b> — review reverse geocoding, spatial checks, scores, coverage, and data sources.</sub>
+    </td>
+  </tr>
+</table>
+
 ## Requirements
 
 - macOS 13 or later
