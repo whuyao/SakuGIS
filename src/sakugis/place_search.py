@@ -21,9 +21,51 @@ from sakugis.credentials import get_brave_api_key
 BRAVE_SEARCH_BASE_URL = "https://api.search.brave.com/res/v1"
 BRAVE_WEB_RESULT_LIMIT = 6
 BRAVE_IMAGE_RESULT_LIMIT = 8
+BRAVE_IMAGE_REQUEST_LIMIT = 24
+BRAVE_IMAGE_PER_PAGE_LIMIT = 2
 MAX_THUMBNAIL_BYTES = 2 * 1024 * 1024
 SESSION_CACHE_TTL_SECONDS = 15 * 60
 USER_AGENT = "SakuGIS/0.3.0 (+https://urbancomp.net)"
+
+_NON_PLACE_IMAGE_HOST_MARKERS = (
+    "amazon.",
+    "aliexpress.",
+    "ebay.",
+    "hkairportshop.",
+    "jd.com",
+    "piececool.",
+    "shop.",
+    "store.",
+    "taobao.",
+    "tmall.",
+    "walmart.",
+)
+_NON_PLACE_IMAGE_TEXT_MARKERS = (
+    "42度",
+    "52度",
+    "500毫升",
+    "白酒",
+    "机场店",
+    "积木",
+    "酒瓶",
+    "模型拼装",
+    "模型套件",
+    "拼图",
+    "商品详情",
+    "手办",
+    "玩具",
+    "纸模",
+    "bottle",
+    "buy online",
+    "figurine",
+    "liquor",
+    "model kit",
+    "paper model",
+    "product listing",
+    "puzzle",
+    "shopping",
+    "toy",
+)
 
 
 class PlaceSearchError(RuntimeError):
@@ -146,7 +188,7 @@ class BraveSearchClient:
                 "/images/search",
                 {
                     "q": _image_query(query, language),
-                    "count": BRAVE_IMAGE_RESULT_LIMIT,
+                    "count": BRAVE_IMAGE_REQUEST_LIMIT,
                     "country": country,
                     "search_lang": search_language,
                     "safesearch": "strict",
@@ -289,9 +331,11 @@ def build_place_query(candidate: Candidate, language: str) -> str:
 
 def _image_query(query: str, language: str) -> str:
     suffix = (
-        "tourist attractions cityscape landscape photos -food -restaurant"
+        "tourist attractions cityscape landscape photos "
+        "-food -restaurant -bottle -liquor -toy -shop"
         if language == "en"
-        else "旅游景点 城市景观 风景照片 -美食 -餐厅"
+        else "旅游景点 城市景观 风景照片 "
+        "-美食 -餐厅 -白酒 -酒瓶 -模型 -拼图 -商品 -购物"
     )
     words = f"{query} {suffix}".split()
     return " ".join(words[:50])[:400].strip()
@@ -336,6 +380,7 @@ def parse_image_results(payload: Dict[str, Any]) -> List[PlaceImageResult]:
     raw = payload.get("results")
     results: List[PlaceImageResult] = []
     seen = set()
+    page_counts: Dict[str, int] = {}
     for item in raw if isinstance(raw, list) else []:
         if not isinstance(item, dict):
             continue
@@ -351,6 +396,16 @@ def parse_image_results(payload: Dict[str, Any]) -> List[PlaceImageResult]:
         identity = original_url or thumbnail_url
         if not thumbnail_url or not page_url or identity in seen:
             continue
+        if page_counts.get(page_url, 0) >= BRAVE_IMAGE_PER_PAGE_LIMIT:
+            continue
+        title = _clean_text(item.get("title"), 180)
+        source = (
+            _clean_text(item.get("source"), 120)
+            or urllib.parse.urlparse(page_url).hostname
+            or ""
+        )
+        if _looks_like_non_place_image(title, page_url, source):
+            continue
         width = _safe_int(
             properties.get("width") if isinstance(properties, dict) else 0
         )
@@ -359,22 +414,31 @@ def parse_image_results(payload: Dict[str, Any]) -> List[PlaceImageResult]:
         )
         results.append(
             PlaceImageResult(
-                title=_clean_text(item.get("title"), 180)
-                or _clean_text(item.get("source"), 120),
+                title=title or source,
                 page_url=page_url,
                 thumbnail_url=thumbnail_url,
                 original_url=original_url,
-                source=_clean_text(item.get("source"), 120)
-                or urllib.parse.urlparse(page_url).hostname
-                or "",
+                source=source,
                 width=width,
                 height=height,
             )
         )
         seen.add(identity)
+        page_counts[page_url] = page_counts.get(page_url, 0) + 1
         if len(results) >= BRAVE_IMAGE_RESULT_LIMIT:
             break
     return results
+
+
+def _looks_like_non_place_image(
+    title: str, page_url: str, source: str
+) -> bool:
+    parsed = urllib.parse.urlparse(page_url)
+    host = (parsed.hostname or "").casefold()
+    if any(marker in host for marker in _NON_PLACE_IMAGE_HOST_MARKERS):
+        return True
+    text = f" {title} {source} {parsed.path} ".casefold()
+    return any(marker in text for marker in _NON_PLACE_IMAGE_TEXT_MARKERS)
 
 
 def _country_parameter(value: str) -> str:

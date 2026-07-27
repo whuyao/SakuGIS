@@ -8,6 +8,7 @@ from sakugis.agent_models import Candidate
 from sakugis.credentials import get_brave_api_key
 from sakugis.i18n import set_language, tr
 from sakugis.place_search import (
+    BRAVE_IMAGE_REQUEST_LIMIT,
     BraveSearchClient,
     MemoryPlaceCache,
     PlaceSearchError,
@@ -115,11 +116,53 @@ class PlaceSearchTests(unittest.TestCase):
                             "src": "https://images.example/b.jpg"
                         },
                     },
+                    {
+                        "title": "黄鹤楼酒 52度更上层楼 500毫升",
+                        "url": "https://hkairportshop.com/product/liquor",
+                        "thumbnail": {
+                            "src": "https://imgs.search.brave.com/c.jpg"
+                        },
+                        "properties": {
+                            "url": "https://images.example/c.jpg"
+                        },
+                    },
+                    {
+                        "title": "黄鹤楼纸模型拼装",
+                        "url": "https://piececool.com/products/tower",
+                        "thumbnail": {
+                            "src": "https://imgs.search.brave.com/d.jpg"
+                        },
+                        "properties": {
+                            "url": "https://images.example/d.jpg"
+                        },
+                    },
                 ]
             }
         )
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0].width, 800)
+
+    def test_images_limit_repetition_from_one_source_page(self):
+        payload = {
+            "results": [
+                {
+                    "title": f"Tower view {index}",
+                    "url": "https://travel.example/yellow-crane-tower",
+                    "thumbnail": {
+                        "src": (
+                            "https://imgs.search.brave.com/"
+                            f"tower-{index}.jpg"
+                        )
+                    },
+                    "properties": {
+                        "url": f"https://images.example/{index}.jpg"
+                    },
+                }
+                for index in range(4)
+            ]
+        }
+        results = parse_image_results(payload)
+        self.assertEqual(len(results), 2)
 
     def test_search_returns_partial_results_and_uses_session_cache(self):
         cache = MemoryPlaceCache()
@@ -146,6 +189,14 @@ class PlaceSearchTests(unittest.TestCase):
         self.assertEqual(first.warnings, ["service"])
         self.assertIs(first, second)
         self.assertEqual(len(client.calls), 2)
+        image_calls = [
+            parameters
+            for route, parameters in client.calls
+            if route == "/images/search"
+        ]
+        self.assertEqual(
+            image_calls[0]["count"], BRAVE_IMAGE_REQUEST_LIMIT
+        )
 
     def test_request_parameter_fallback_becomes_global(self):
         class FallbackClient(FakeSearchClient):
