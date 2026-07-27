@@ -11,6 +11,7 @@ from qgis.PyQt.QtGui import QColor, QKeySequence
 from qgis.PyQt.QtWidgets import (
     QAction,
     QActionGroup,
+    QApplication,
     QDockWidget,
     QFileDialog,
     QLabel,
@@ -47,9 +48,17 @@ from sakugis.agent_models import Candidate, GeoAnalysisResult
 from sakugis.agent_panel import AgentPanel
 from sakugis.i18n import EN, ZH_CN, get_language, set_language, tr
 from sakugis.layer_panel import LayerPanel
+from sakugis.map_defaults import WUHAN_INITIAL_EXTENT_WGS84
 from sakugis.reporting import write_markdown_report
 from sakugis.ui_components import MapHud, WelcomeOverlay
-from sakugis.ui_theme import COLORS, glyph_icon
+from sakugis.ui_theme import (
+    DARK,
+    LIGHT,
+    apply_theme,
+    get_theme,
+    glyph_icon,
+    theme_colors,
+)
 
 
 class MainWindow(QMainWindow):
@@ -70,7 +79,7 @@ class MainWindow(QMainWindow):
         )
         self.canvas = QgsMapCanvas(self)
         self.canvas.setObjectName("MapCanvas")
-        self.canvas.setCanvasColor(QColor(COLORS["background"]))
+        self.canvas.setCanvasColor(QColor(theme_colors()["background"]))
         self.canvas.enableAntiAliasing(True)
         self.canvas.setParallelRenderingEnabled(True)
         self.canvas.setDestinationCrs(QgsCoordinateReferenceSystem("EPSG:3857"))
@@ -222,6 +231,24 @@ class MainWindow(QMainWindow):
         self.chinese_action.setChecked(get_language() == ZH_CN)
         self.english_action.setChecked(get_language() == EN)
 
+        self.theme_action_group = QActionGroup(self)
+        self.theme_action_group.setExclusive(True)
+        self.light_theme_action = QAction(tr("theme.light"), self)
+        self.light_theme_action.setCheckable(True)
+        self.light_theme_action.setData(LIGHT)
+        self.dark_theme_action = QAction(tr("theme.dark"), self)
+        self.dark_theme_action.setCheckable(True)
+        self.dark_theme_action.setData(DARK)
+        for action in (self.light_theme_action, self.dark_theme_action):
+            self.theme_action_group.addAction(action)
+            action.triggered.connect(
+                lambda checked, selected=action: (
+                    self._set_theme(str(selected.data())) if checked else None
+                )
+            )
+        self.light_theme_action.setChecked(get_theme() == LIGHT)
+        self.dark_theme_action.setChecked(get_theme() == DARK)
+
         self.map_tool_actions = [
             self.pan_action,
             self.zoom_in_action,
@@ -255,6 +282,10 @@ class MainWindow(QMainWindow):
 
         self.agent_menu = self.menuBar().addMenu(tr("menu.agent"))
         self.agent_menu.addAction(self.agent_dock.toggleViewAction())
+
+        self.appearance_menu = self.menuBar().addMenu(tr("menu.appearance"))
+        self.appearance_menu.addAction(self.light_theme_action)
+        self.appearance_menu.addAction(self.dark_theme_action)
 
         self.language_menu = self.menuBar().addMenu(tr("menu.language"))
         self.language_menu.addAction(self.chinese_action)
@@ -303,6 +334,25 @@ class MainWindow(QMainWindow):
         QgsSettings().setValue("sakugis/ui/language", get_language())
         self.retranslate_ui()
 
+    def _set_theme(self, theme: str) -> None:
+        apply_theme(QApplication.instance(), theme)
+        QgsSettings().setValue("sakugis/ui/theme", get_theme())
+        self.canvas.setCanvasColor(
+            QColor(theme_colors()["background"])
+        )
+        self._refresh_action_icons()
+        self.canvas.refresh()
+
+    def _refresh_action_icons(self) -> None:
+        self.open_data_action.setIcon(glyph_icon("↗"))
+        self.save_project_action.setIcon(glyph_icon("↓"))
+        self.export_report_action.setIcon(glyph_icon("⇩"))
+        self.add_google_satellite_action.setIcon(glyph_icon("◉"))
+        self.pan_action.setIcon(glyph_icon("✥"))
+        self.zoom_in_action.setIcon(glyph_icon("+"))
+        self.zoom_out_action.setIcon(glyph_icon("−"))
+        self.show_welcome_action.setIcon(glyph_icon("?"))
+
     def retranslate_ui(self) -> None:
         self.open_data_action.setText(tr("action.open_data"))
         self.open_project_action.setText(tr("action.open_project"))
@@ -326,10 +376,13 @@ class MainWindow(QMainWindow):
         self.map_menu.setTitle(tr("menu.map"))
         self.layer_menu.setTitle(tr("menu.layer"))
         self.agent_menu.setTitle(tr("menu.agent"))
+        self.appearance_menu.setTitle(tr("menu.appearance"))
         self.language_menu.setTitle(tr("menu.language"))
         self.help_menu.setTitle(tr("menu.help"))
         self.chinese_action.setText(tr("language.chinese"))
         self.english_action.setText(tr("language.english"))
+        self.light_theme_action.setText(tr("theme.light"))
+        self.dark_theme_action.setText(tr("theme.dark"))
         self.layer_dock.setWindowTitle(tr("dock.layers"))
         self.agent_dock.setWindowTitle(tr("dock.agents"))
         self.main_toolbar.setWindowTitle(tr("toolbar.main"))
@@ -459,8 +512,8 @@ class MainWindow(QMainWindow):
         source_crs = QgsCoordinateReferenceSystem("EPSG:4326")
         destination_crs = self.canvas.mapSettings().destinationCrs()
         transform = QgsCoordinateTransform(source_crs, destination_crs, self.project)
-        japan_and_east_asia = QgsRectangle(115.0, 20.0, 150.0, 48.0)
-        self.canvas.setExtent(transform.transformBoundingBox(japan_and_east_asia))
+        wuhan = QgsRectangle(*WUHAN_INITIAL_EXTENT_WGS84)
+        self.canvas.setExtent(transform.transformBoundingBox(wuhan))
         self.canvas.refresh()
 
     def _update_coordinates(self, point) -> None:
@@ -561,6 +614,9 @@ class MainWindow(QMainWindow):
     def _add_default_basemap_if_empty(self) -> None:
         if not self.project.mapLayers():
             self.add_osm_basemap()
+            # The layer-tree bridge may apply the global XYZ extent on the
+            # next event-loop turn, so restore Wuhan after that update.
+            QTimer.singleShot(150, self._set_initial_extent)
             if not self.project.fileName():
                 self.project.setDirty(False)
 

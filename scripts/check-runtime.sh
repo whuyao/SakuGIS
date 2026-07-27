@@ -100,6 +100,38 @@ from sakugis.main_window import MainWindow
 
 window = MainWindow()
 window.show()
+app.processEvents()
+
+from qgis.core import QgsCoordinateReferenceSystem, QgsCoordinateTransform
+
+center_transform = QgsCoordinateTransform(
+    window.canvas.mapSettings().destinationCrs(),
+    QgsCoordinateReferenceSystem("EPSG:4326"),
+    window.project,
+)
+initial_center = center_transform.transform(window.canvas.center())
+if not (
+    113.65 <= initial_center.x() <= 115.00
+    and 30.05 <= initial_center.y() <= 31.15
+):
+    raise SystemExit(
+        f"Initial map center is not in Wuhan: "
+        f"{initial_center.x()}, {initial_center.y()}"
+    )
+print(
+    f"Initial map center: "
+    f"{initial_center.x():.4f}, {initial_center.y():.4f}"
+)
+
+from sakugis.ui_theme import DARK, LIGHT, get_theme
+
+window._set_theme(LIGHT)
+if get_theme() != LIGHT or "#F3F6FA" not in app.styleSheet():
+    raise SystemExit("Light theme did not apply")
+window._set_theme(DARK)
+if get_theme() != DARK or "#07101B" not in app.styleSheet():
+    raise SystemExit("Dark theme did not restore")
+print("Light/dark theme switch: OK")
 
 smoke_language = os.environ.get("SAKUGIS_SMOKE_LANGUAGE")
 if smoke_language:

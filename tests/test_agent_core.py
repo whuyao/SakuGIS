@@ -494,8 +494,12 @@ class AgentCoreTests(unittest.TestCase):
     def test_runtime_language_switch(self):
         set_language("en")
         self.assertEqual(tr("menu.file"), "File")
+        self.assertEqual(tr("menu.appearance"), "Appearance")
+        self.assertEqual(tr("theme.light"), "Light Mode")
         set_language("zh_CN")
         self.assertEqual(tr("menu.file"), "文件")
+        self.assertEqual(tr("menu.appearance"), "外观")
+        self.assertEqual(tr("theme.light"), "浅色模式")
 
     def test_profile_csv_parser(self):
         with tempfile.TemporaryDirectory() as directory:

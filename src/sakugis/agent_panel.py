@@ -128,13 +128,10 @@ class AgentPanel(QWidget):
             lambda current, _previous: self._show_photo_item(current)
         )
         self.preview = QLabel(tr("agent.no_photo"), self)
+        self.preview.setObjectName("PhotoPreview")
         self.preview.setAlignment(Qt.AlignCenter)
         self.preview.setMinimumHeight(110)
         self.preview.setMaximumHeight(180)
-        self.preview.setStyleSheet(
-            "QLabel { background: #091522; border: 1px dashed #31516D; "
-            "border-radius: 8px; color: #7F98AB; }"
-        )
         photo_layout = QVBoxLayout(self.photo_group)
         photo_layout.addLayout(photo_row)
         photo_layout.addWidget(self.photo_list)

@@ -19,6 +19,8 @@ Developed by the [UrbanComp team](https://urbancomp.net).
 - Local GeoJSON, GeoPackage, Shapefile, KML, GeoTIFF, and common GIS formats.
 - Layer visibility, ordering, renaming, opacity, and candidate navigation.
 - Chinese and English runtime UI.
+- Persistent light and dark appearance modes.
+- Wuhan, Hubei is the default startup map view.
 - Multi-photo Case workspace: jointly analyze up to six photos captured at
   the same location, while retaining single-photo and text-only queries.
 - Three-stage agent pipeline:

@@ -1,6 +1,6 @@
 [project]
 name = "sakugis"
-version = "0.2.0"
+version = "0.2.1"
 description = "A lightweight macOS desktop GIS powered by QGIS"
 requires-python = ">=3.9"
 license = { text = "GPL-2.0-or-later" }

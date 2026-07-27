@@ -7,6 +7,10 @@ from sakugis.basemaps import (
     GOOGLE_SATELLITE_SOURCE_URL,
     OSM,
 )
+from sakugis.map_defaults import (
+    WUHAN_CENTER_WGS84,
+    WUHAN_INITIAL_EXTENT_WGS84,
+)
 
 
 class BasemapDefinitionTests(unittest.TestCase):
@@ -35,6 +39,14 @@ class BasemapDefinitionTests(unittest.TestCase):
             )
         )
         self.assertIn("https://mt2.google.com", GOOGLE_SATELLITE_FALLBACK.uri)
+
+    def test_initial_extent_contains_wuhan(self):
+        longitude, latitude = WUHAN_CENTER_WGS84
+        west, south, east, north = WUHAN_INITIAL_EXTENT_WGS84
+        self.assertLess(west, longitude)
+        self.assertLess(longitude, east)
+        self.assertLess(south, latitude)
+        self.assertLess(latitude, north)
 
 
 if __name__ == "__main__":

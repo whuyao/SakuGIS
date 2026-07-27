@@ -1,12 +1,19 @@
-"""SakuGIS visual system: dark observatory surfaces with accessible accents."""
+"""SakuGIS visual system with persistent dark and light appearances."""
 
 from __future__ import annotations
+
+import re
 
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QColor, QFont, QIcon, QPainter, QPen, QPixmap
 
 
-COLORS = {
+DARK = "dark"
+LIGHT = "light"
+SUPPORTED_THEMES = (DARK, LIGHT)
+_theme = DARK
+
+DARK_COLORS = {
     "background": "#07101B",
     "surface": "#0D1928",
     "surface_raised": "#122236",
@@ -22,8 +29,27 @@ COLORS = {
     "danger": "#FF7185",
 }
 
+LIGHT_COLORS = {
+    "background": "#F3F6FA",
+    "surface": "#FFFFFF",
+    "surface_raised": "#E9EFF5",
+    "surface_hover": "#DCE8F2",
+    "border": "#B8C7D3",
+    "text": "#172534",
+    "muted": "#607487",
+    "cyan": "#1687A3",
+    "cyan_soft": "#D8EEF3",
+    "magenta": "#D13F72",
+    "green": "#258B5D",
+    "amber": "#A76A00",
+    "danger": "#C93C52",
+}
 
-STYLESHEET = """
+# Backwards-compatible palette for modules that only need the brand accents.
+COLORS = DARK_COLORS
+
+
+DARK_STYLESHEET = """
 QMainWindow, QDialog, QMessageBox, QWidget {
     color: #E8F1F8;
     background-color: #07101B;
@@ -110,7 +136,7 @@ QGroupBox::title {
     padding: 0 5px;
     color: #AFC2D1;
 }
-QLineEdit, QTextEdit, QTextBrowser, QTreeView, QTreeWidget {
+QLineEdit, QTextEdit, QTextBrowser, QListView, QListWidget, QTreeView, QTreeWidget {
     background: #091522;
     alternate-background-color: #0D1B2A;
     color: #E8F1F8;
@@ -118,7 +144,8 @@ QLineEdit, QTextEdit, QTextBrowser, QTreeView, QTreeWidget {
     border-radius: 7px;
     padding: 6px;
 }
-QLineEdit:focus, QTextEdit:focus, QTreeView:focus, QTreeWidget:focus {
+QLineEdit:focus, QTextEdit:focus, QListView:focus, QListWidget:focus,
+QTreeView:focus, QTreeWidget:focus {
     border: 1px solid #42D7F5;
 }
 QLineEdit[readOnly="true"] {
@@ -311,6 +338,12 @@ QLabel#StepDone {
     border-radius: 8px;
     padding: 6px 8px;
 }
+QLabel#PhotoPreview {
+    background: #091522;
+    border: 1px dashed #31516D;
+    border-radius: 8px;
+    color: #7F98AB;
+}
 QFrame#WelcomeCard {
     background: rgba(9, 21, 34, 242);
     border: 1px solid #3B6D89;
@@ -334,14 +367,113 @@ QToolTip {
 }
 """
 
+_LIGHT_REPLACEMENTS = {
+    "#07101b": "#F3F6FA",
+    "#0d1928": "#FFFFFF",
+    "#122236": "#E9EFF5",
+    "#182e47": "#DCE8F2",
+    "#284158": "#B8C7D3",
+    "#e8f1f8": "#172534",
+    "#91a7b9": "#607487",
+    "#42d7f5": "#1687A3",
+    "#193c4a": "#D8EEF3",
+    "#ff5c93": "#D13F72",
+    "#61e6a2": "#258B5D",
+    "#ffc66d": "#A76A00",
+    "#ff7185": "#C93C52",
+    "#1c6e86": "#1687A3",
+    "#091421": "#F7F9FC",
+    "#c9d8e5": "#34495E",
+    "#20374b": "#C8D3DC",
+    "#102033": "#FFFFFF",
+    "#31516d": "#A9BCCB",
+    "#0a1624": "#F7F9FC",
+    "#73e7ff": "#0A6F88",
+    "#0b1725": "#F0F4F8",
+    "#ddeaf4": "#243647",
+    "#afc2d1": "#52687A",
+    "#091522": "#FFFFFF",
+    "#0d1b2a": "#F4F7FA",
+    "#0a1420": "#F0F3F6",
+    "#152a40": "#E7F0F5",
+    "#1a6379": "#1687A3",
+    "#162a40": "#E8F1F7",
+    "#dce9f3": "#253848",
+    "#1d3855": "#D9E8F1",
+    "#4b789a": "#7A9DB5",
+    "#10243a": "#CFE0EA",
+    "#617486": "#8A99A6",
+    "#101b27": "#EBEFF2",
+    "#203041": "#D1DAE1",
+    "#137d98": "#147E99",
+    "#1995b5": "#0E6D84",
+    "#432333": "#FCE8EE",
+    "#8e3e58": "#D68A9E",
+    "#ffb2c8": "#8E2444",
+    "#24bcd9": "#1687A3",
+    "#72899b": "#708393",
+    "#82eaff": "#096B83",
+    "#8bf0ba": "#1B774C",
+    "#15372d": "#E4F4EC",
+    "#2f765a": "#8BC2A7",
+    "#143846": "#DCEFF3",
+    "#2c6e81": "#83B7C4",
+    "#ffd89a": "#8A5800",
+    "#3b301d": "#FFF4D8",
+    "#765c2b": "#D6B66C",
+    "#3b8a69": "#79B797",
+    "#3b6d89": "#8CB4C7",
+    "#08131f": "#F4F7FA",
+    "#9eb2c2": "#52687A",
+    "#f2f8fc": "#142433",
+    "#6fdff6": "#0B718A",
+    "#edf6fc": "#172534",
+    "#7f98ab": "#718392",
+    "rgba(9, 21, 34, 242)": "rgba(255, 255, 255, 245)",
+    "rgba(8, 20, 33, 220)": "rgba(255, 255, 255, 225)",
+}
+_LIGHT_PATTERN = re.compile(
+    "|".join(
+        sorted(
+            (re.escape(value) for value in _LIGHT_REPLACEMENTS),
+            key=len,
+            reverse=True,
+        )
+    ),
+    re.IGNORECASE,
+)
+LIGHT_STYLESHEET = _LIGHT_PATTERN.sub(
+    lambda match: _LIGHT_REPLACEMENTS[match.group(0).lower()],
+    DARK_STYLESHEET,
+)
+STYLESHEET = DARK_STYLESHEET
 
-def apply_theme(application) -> None:
+
+def normalize_theme(theme: str) -> str:
+    return theme if theme in SUPPORTED_THEMES else DARK
+
+
+def get_theme() -> str:
+    return _theme
+
+
+def theme_colors(theme: str = "") -> dict:
+    selected = normalize_theme(theme or _theme)
+    return LIGHT_COLORS if selected == LIGHT else DARK_COLORS
+
+
+def apply_theme(application, theme: str = DARK) -> None:
+    global _theme
+    _theme = normalize_theme(theme)
     application.setStyle("Fusion")
     application.setFont(QFont("Avenir Next", 13))
-    application.setStyleSheet(STYLESHEET)
+    application.setStyleSheet(
+        LIGHT_STYLESHEET if _theme == LIGHT else DARK_STYLESHEET
+    )
 
 
-def glyph_icon(glyph: str, color: str = COLORS["cyan"]) -> QIcon:
+def glyph_icon(glyph: str, color: str = "") -> QIcon:
+    color = color or theme_colors()["cyan"]
     pixmap = QPixmap(28, 28)
     pixmap.fill(Qt.transparent)
     painter = QPainter(pixmap)
