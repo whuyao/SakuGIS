@@ -69,6 +69,31 @@ QGIS 工程保存能力。由 [UrbanComp 团队](https://urbancomp.net)开发。
   </tr>
 </table>
 
+### 真实全球案例
+
+以下截图均来自打包后的 Apple Silicon 应用。每个案例都完整执行了三 Agent
+千问流水线、OSM/GIS 核验、候选比较和基于 Brave Search 的地点照片检索。
+当前分数仍是未经校准的排序信号。
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/images/beijing-palace-museum.webp" alt="SakuGIS 北京故宫博物院结果">
+      <br><sub><b>北京故宫博物院</b>——在北京、台北和沈阳候选中正确排名第一，综合评分 83.9，GIS 覆盖率 100%。</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/images/paris-eiffel-tower.webp" alt="SakuGIS 巴黎埃菲尔铁塔结果">
+      <br><sub><b>巴黎埃菲尔铁塔</b>——将巴黎地标与拉斯维加斯复制品区分开，综合评分 88.8，GIS 分数 78.0。</sub>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <img src="docs/images/sydney-opera-house.webp" alt="SakuGIS 悉尼歌剧院结果">
+      <br><sub><b>悉尼歌剧院</b>——将悉尼排在第一并压低哥本哈根、奥斯陆误识候选；详情面板加载了 5 条介绍和 8 张带来源链接的照片。</sub>
+    </td>
+  </tr>
+</table>
+
 ## 开发环境
 
 - Apple Silicon Mac（M1 或更新芯片）；不支持 Intel Mac
@@ -125,7 +150,10 @@ SAKUGIS_QWEN_MAX_PROMPT_CHARS=48000 \
 候选地点详情使用 Brave Search 的 Web Search 和 Image Search 接口。网络检索
 在后台进行，不会阻塞地图拖动；网页与照片均保留可点击的原始来源。照片只是
 搜索相关结果，不代表已经由 SakuGIS 确认拍摄位置，版权归原始发布者所有。
-搜索结果和缩略图只在当前会话内短暂缓存，不写入磁盘。
+搜索结果和缩略图只在当前会话内短暂缓存，不写入磁盘。图片检索会扩大初始
+候选池，过滤明显的零售商品、酒类、玩具、模型和购物页面，并限制同一来源
+页面重复出现的数量，以提高来源多样性。该过滤属于启发式规则，不能替代
+用户对原始来源的检查。
 
 项目不会保存 Brave Key。可从本地文本文件安全导入 macOS 钥匙串：
 

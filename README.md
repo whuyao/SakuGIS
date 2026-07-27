@@ -71,6 +71,32 @@ Developed by the [UrbanComp team](https://urbancomp.net).
   </tr>
 </table>
 
+### Live global examples
+
+The following captures come from the packaged Apple Silicon application. Each
+case completed the three-agent Qwen pipeline, OSM/GIS verification, candidate
+comparison, and Brave-backed place-photo discovery. Scores remain uncalibrated
+ranking signals.
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/images/beijing-palace-museum.webp" alt="SakuGIS Beijing Palace Museum result">
+      <br><sub><b>Beijing Palace Museum</b> — ranked above the Taipei and Shenyang alternatives with an 83.9 composite score and 100% GIS coverage.</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/images/paris-eiffel-tower.webp" alt="SakuGIS Paris Eiffel Tower result">
+      <br><sub><b>Paris Eiffel Tower</b> — separated the Paris landmark from the Las Vegas replica with an 88.8 composite score and 78.0 GIS score.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <img src="docs/images/sydney-opera-house.webp" alt="SakuGIS Sydney Opera House result">
+      <br><sub><b>Sydney Opera House</b> — ranked Sydney first and suppressed Copenhagen and Oslo false hypotheses; the details dock loaded five descriptions and eight source-linked photos.</sub>
+    </td>
+  </tr>
+</table>
+
 ## Requirements
 
 - Apple Silicon Mac (M1 or later); Intel Macs are not supported
@@ -135,7 +161,10 @@ so map interaction remains responsive. Every web result and image links to its
 original page. Images are search-related references, not confirmed capture
 locations, and remain subject to the original publisher's rights. Results and
 thumbnail bytes use only a short-lived in-memory session cache and are not
-persisted to disk.
+persisted to disk. Image discovery expands the search pool, removes obvious
+retail, liquor, toy, model, and shopping-page noise, and limits repeated
+results from one source page to improve diversity. This filtering is heuristic
+and does not replace source review.
 
 Import a local Brave key text file into the macOS Keychain:
 
