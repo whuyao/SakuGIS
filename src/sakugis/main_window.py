@@ -59,6 +59,8 @@ class MainWindow(QMainWindow):
         self.resize(1440, 900)
         self.setMinimumSize(1040, 680)
         self._last_analysis_result = None
+        self._coordinate_display = None
+        self._current_scale = None
 
         self.project = QgsProject.instance()
         self._shutting_down = False
@@ -332,10 +334,17 @@ class MainWindow(QMainWindow):
         self.agent_dock.setWindowTitle(tr("dock.agents"))
         self.main_toolbar.setWindowTitle(tr("toolbar.main"))
         self.render_status.setText(tr("status.ready"))
-        if self.coordinate_status.text().endswith("—"):
+        if self._coordinate_display is None:
             self.coordinate_status.setText(tr("status.coordinate_empty"))
-        if self.scale_status.text().endswith("—"):
+        else:
+            key, values = self._coordinate_display
+            self.coordinate_status.setText(tr(key, **values))
+        if self._current_scale is None:
             self.scale_status.setText(tr("status.scale_empty"))
+        else:
+            self.scale_status.setText(
+                tr("status.scale", scale=f"{self._current_scale:,.0f}")
+            )
         self.layer_panel.retranslate_ui()
         self.agent_panel.retranslate_ui()
         self.welcome_overlay.retranslate_ui()
@@ -462,23 +471,26 @@ class MainWindow(QMainWindow):
                 self.project,
             )
             geographic = transform.transform(point)
+            values = {
+                "x": f"{geographic.x():.5f}",
+                "y": f"{geographic.y():.5f}",
+            }
+            self._coordinate_display = ("status.latlon", values)
             self.coordinate_status.setText(
-                tr(
-                    "status.latlon",
-                    x=f"{geographic.x():.5f}",
-                    y=f"{geographic.y():.5f}",
-                )
+                tr("status.latlon", **values)
             )
         except Exception:
+            values = {
+                "x": f"{point.x():.2f}",
+                "y": f"{point.y():.2f}",
+            }
+            self._coordinate_display = ("status.coordinate", values)
             self.coordinate_status.setText(
-                tr(
-                    "status.coordinate",
-                    x=f"{point.x():.2f}",
-                    y=f"{point.y():.2f}",
-                )
+                tr("status.coordinate", **values)
             )
 
     def _update_scale(self, scale: float) -> None:
+        self._current_scale = scale
         self.scale_status.setText(tr("status.scale", scale=f"{scale:,.0f}"))
 
     def add_osm_basemap(self) -> None:
