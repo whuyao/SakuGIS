@@ -42,12 +42,12 @@ Developed by the [UrbanComp team](https://urbancomp.net).
 <table>
   <tr>
     <td width="50%">
-      <img src="docs/images/global-candidates.webp" alt="SakuGIS global candidate search">
-      <br><sub><b>Global candidate search</b> — geographically diverse hypotheses remain visible as inspectable QGIS layers.</sub>
+      <img src="docs/images/wuhan-light-workspace.webp" alt="SakuGIS light workspace centered on Wuhan">
+      <br><sub><b>Light workspace</b> — start in Wuhan with map layers, up to six Case photos, text queries, Qwen status, and the OSM/PostGIS verifier in one window.</sub>
     </td>
     <td width="50%">
-      <img src="docs/images/osm-candidate-focus.webp" alt="SakuGIS OpenStreetMap candidate focus">
-      <br><sub><b>OSM candidate focus</b> — select a candidate to navigate from the global result to its local uncertainty area.</sub>
+      <img src="docs/images/global-candidates.webp" alt="SakuGIS global candidate search">
+      <br><sub><b>Global candidate search</b> — geographically diverse hypotheses remain visible as expandable, inspectable QGIS layers.</sub>
     </td>
   </tr>
   <tr>
