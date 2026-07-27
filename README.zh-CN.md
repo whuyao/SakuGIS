@@ -41,12 +41,12 @@ QGIS 工程保存能力。由 [UrbanComp 团队](https://urbancomp.net)开发。
 <table>
   <tr>
     <td width="50%">
-      <img src="docs/images/global-candidates.webp" alt="SakuGIS 全球候选位置">
-      <br><sub><b>全球候选位置</b>——生成具有地理多样性的假设，并作为可检查的 QGIS 图层展示。</sub>
+      <img src="docs/images/wuhan-light-workspace.webp" alt="SakuGIS 浅色模式武汉工作区">
+      <br><sub><b>浅色工作区</b>——从武汉启动，在同一窗口管理地图图层、最多 6 张 Case 照片、查询文本、千问状态和 OSM/PostGIS 核验。</sub>
     </td>
     <td width="50%">
-      <img src="docs/images/osm-candidate-focus.webp" alt="SakuGIS OpenStreetMap 候选定位">
-      <br><sub><b>OSM 候选定位</b>——单击候选，从全球结果快速进入局部不确定性范围。</sub>
+      <img src="docs/images/global-candidates.webp" alt="SakuGIS 全球候选位置">
+      <br><sub><b>全球候选位置</b>——生成具有地理多样性的假设，并作为可展开、可检查的 QGIS 图层展示。</sub>
     </td>
   </tr>
   <tr>
