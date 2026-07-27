@@ -64,9 +64,13 @@ QGIS 工程保存能力。由 [UrbanComp 团队](https://urbancomp.net)开发。
     </td>
   </tr>
   <tr>
-    <td colspan="2">
+    <td width="50%">
       <img src="docs/images/place-details-web-photos.webp" alt="SakuGIS 地点详情与网络照片">
-      <br><sub><b>地点详情与网络照片</b>——单击候选后，在地图下方联合查看 GIS 分数、地点介绍、Brave Search 相关照片和原始来源。</sub>
+      <br><sub><b>停靠式 Place Explorer</b>——可重新停靠在地图下方，连续对比候选位置。</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/images/place-details-floating-window.webp" alt="SakuGIS 黄鹤楼浮动 Place Explorer">
+      <br><sub><b>浮动式 Place Explorer</b>——仅在具名 GIS 地点身份和有效网络资料同时存在时出现；可拖动、调整大小，不压缩主地图。本次黄鹤楼真实检索返回 6 条介绍和 8 张照片。</sub>
     </td>
   </tr>
 </table>

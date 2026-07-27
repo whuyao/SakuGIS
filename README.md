@@ -66,9 +66,13 @@ Developed by the [UrbanComp team](https://urbancomp.net).
     </td>
   </tr>
   <tr>
-    <td colspan="2">
+    <td width="50%">
       <img src="docs/images/place-details-web-photos.webp" alt="SakuGIS place details and web photos">
-      <br><sub><b>Place details and web photos</b> — select a candidate to inspect GIS scores, web descriptions, Brave Search image references, and original sources below the map.</sub>
+      <br><sub><b>Docked Place Explorer</b> — reattach results below the map for continuous candidate comparison.</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/images/place-details-floating-window.webp" alt="SakuGIS floating Place Explorer for Yellow Crane Tower">
+      <br><sub><b>Floating Place Explorer</b> — opens only after a named GIS identity and valid online material are found; drag or resize it without shrinking the map. This live Yellow Crane Tower query returned six descriptions and eight photos.</sub>
     </td>
   </tr>
 </table>
