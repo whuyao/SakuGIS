@@ -156,8 +156,8 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     },
     "about.title": {ZH_CN: "关于 SakuGIS", EN: "About SakuGIS"},
     "about.body": {
-        ZH_CN: "<h3>SakuGIS 0.2.1</h3><p>一款基于 QGIS 的轻量 macOS 桌面 GIS。</p><p>开发团队：<a href=\"https://urbancomp.net\">UrbanComp</a>。</p><p>许可证：GNU GPL v2 或更高版本。</p>",
-        EN: "<h3>SakuGIS 0.2.1</h3><p>A lightweight macOS desktop GIS powered by QGIS.</p><p>Developed by the <a href=\"https://urbancomp.net\">UrbanComp team</a>.</p><p>License: GNU GPL v2 or later.</p>",
+        ZH_CN: "<h3>SakuGIS 0.2.2</h3><p>一款基于 QGIS 的轻量 macOS 桌面 GIS。</p><p>开发团队：<a href=\"https://urbancomp.net\">UrbanComp</a>。</p><p>许可证：GNU GPL v2 或更高版本。</p>",
+        EN: "<h3>SakuGIS 0.2.2</h3><p>A lightweight macOS desktop GIS powered by QGIS.</p><p>Developed by the <a href=\"https://urbancomp.net\">UrbanComp team</a>.</p><p>License: GNU GPL v2 or later.</p>",
     },
     "layer.opacity": {ZH_CN: "透明度 {value}%", EN: "Opacity {value}%"},
     "layer.eyebrow": {ZH_CN: "MAP CONTENTS", EN: "MAP CONTENTS"},
@@ -481,6 +481,10 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         ZH_CN: "Agent 1 正在提取视觉与文字证据…",
         EN: "Agent 1 is extracting visual and text evidence…",
     },
+    "progress.agent1_photo": {
+        ZH_CN: "Agent 1 正在分析照片 {current}/{total}…",
+        EN: "Agent 1 is analyzing photo {current}/{total}…",
+    },
     "progress.agent2": {
         ZH_CN: "Agent 2 正在生成全球候选位置…",
         EN: "Agent 2 is generating worldwide candidates…",
@@ -539,6 +543,14 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "error.api_rate_limit": {
         ZH_CN: "千问 API 请求过于频繁或额度不足。",
         EN: "The Qwen API is rate-limited or has insufficient quota.",
+    },
+    "error.prompt_too_long": {
+        ZH_CN: "本次定位输入过长（{actual}/{maximum} 字符），已在发送前停止。请缩短查询文本，或提高当前模型对应的提示上限。",
+        EN: "This geolocation input is too long ({actual}/{maximum} characters) and was stopped before upload. Shorten the query or raise the prompt limit for the selected model.",
+    },
+    "error.api_context_length": {
+        ZH_CN: "千问拒绝了过长的上下文。SakuGIS 已限制提示长度并逐张发送照片；请缩短查询后重试，或检查当前模型的上下文限制。",
+        EN: "Qwen rejected the request because its context was too long. SakuGIS already bounds prompts and sends photos one at a time; shorten the query or check the selected model's context limit.",
     },
     "error.api_http": {
         ZH_CN: "千问 API 返回 HTTP {code}。",

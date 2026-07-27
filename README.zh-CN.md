@@ -17,7 +17,8 @@ QGIS 工程保存能力。由 [UrbanComp 团队](https://urbancomp.net)开发。
 - 状态栏显示经纬度、比例尺和渲染状态
 - OSM 版权署名与合规的应用 User-Agent
 - 多照片 Case 工作区：可联合分析最多 6 张同一地点照片，同时兼容单照片
-  和纯文本查询；证据保留照片来源并合并跨照片重复线索
+  和纯文本查询；每张照片分别发送一次视觉请求，证据在本机合并，避免多图
+  同时上传造成上下文失败，并保留照片来源、合并跨照片重复线索
 - 三阶段千问流水线：证据提取、候选生成、候选核验与重排
 - Agent 2/3 的真实 GIS 核验：OSM Nominatim 地点反查、Overpass 空间约束，
   以及可选的本地 PostGIS 后端
@@ -97,14 +98,19 @@ Key 会保存到当前用户的 macOS 钥匙串，服务名为
 SAKUGIS_QWEN_API_KEY=... \
 SAKUGIS_QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1 \
 SAKUGIS_QWEN_MODEL=qwen3.7-plus \
+SAKUGIS_QWEN_MAX_PROMPT_CHARS=48000 \
 ./scripts/run-dev.sh
 ```
 
 如需使用业务空间专属地址，可通过 `SAKUGIS_QWEN_BASE_URL` 在运行时覆盖；
 不要将该地址或业务空间配置提交到公开仓库。
 
-照片会先在本机读取元数据并缩放，再发送给千问。当前候选评分是用于比较候选
-的探索排序分数，尚未经过独立地理验证集校准，因此不是统计概率。
+千问请求不保留对话历史：每个阶段只发送一条系统消息和当前 Case 的输入，
+不会带入上一次定位。照片会先在本机读取元数据和缩放，再由 Agent 1 每次仅
+发送一张；Agent 2/3 只接收压缩后的结构化 JSON。三个阶段的提示预算分别为
+12,000 / 18,000 / 32,000 字符，客户端另有 48,000 字符总保护；不同模型可
+通过 `SAKUGIS_QWEN_MAX_PROMPT_CHARS` 调整最后一道保护。当前候选评分是用于
+比较候选的探索排序分数，尚未经过独立地理验证集校准，因此不是统计概率。
 
 ## GIS 核验后端
 

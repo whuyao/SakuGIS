@@ -31,13 +31,13 @@ SakuGIS 0.2 起仅发布 Apple Silicon（arm64）版本，不再支持 Intel Mac
 
 ```bash
 xcrun notarytool submit \
-  ./dist/SakuGIS-0.2.1.dmg \
+  ./dist/SakuGIS-0.2.2.dmg \
   --keychain-profile SakuGISNotary \
   --wait
 
-xcrun stapler staple ./dist/SakuGIS-0.2.1.dmg
+xcrun stapler staple ./dist/SakuGIS-0.2.2.dmg
 spctl --assess --type open --context context:primary-signature \
-  --verbose=4 ./dist/SakuGIS-0.2.1.dmg
+  --verbose=4 ./dist/SakuGIS-0.2.2.dmg
 ```
 
 Developer ID 私钥、Apple ID 密码和 API Key 不应提交到仓库。
