@@ -18,6 +18,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "menu.map": {ZH_CN: "地图", EN: "Map"},
     "menu.layer": {ZH_CN: "图层", EN: "Layer"},
     "menu.agent": {ZH_CN: "Agent", EN: "Agents"},
+    "menu.settings": {ZH_CN: "设置", EN: "Settings"},
     "menu.appearance": {ZH_CN: "外观", EN: "Appearance"},
     "menu.language": {ZH_CN: "语言", EN: "Language"},
     "menu.help": {ZH_CN: "帮助", EN: "Help"},
@@ -50,6 +51,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "action.initial_extent": {ZH_CN: "回到初始范围", EN: "Initial Extent"},
     "action.remove_layers": {ZH_CN: "移除选中图层", EN: "Remove Selected Layers"},
     "action.about": {ZH_CN: "关于 SakuGIS", EN: "About SakuGIS"},
+    "action.settings": {ZH_CN: "设置…", EN: "Settings…"},
     "dock.layers": {ZH_CN: "图层", EN: "Layers"},
     "dock.agents": {ZH_CN: "Geo Agents", EN: "Geo Agents"},
     "dock.place_details": {ZH_CN: "地点详情", EN: "Place Details"},
@@ -193,6 +195,147 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "place.error.image_size": {
         ZH_CN: "图片过大或内容为空。",
         EN: "The image was too large or empty.",
+    },
+    "settings.title": {ZH_CN: "SakuGIS 设置", EN: "SakuGIS Settings"},
+    "settings.api_tab": {ZH_CN: "API 服务", EN: "API Services"},
+    "settings.model_tab": {ZH_CN: "模型与算法", EN: "Model & Algorithm"},
+    "settings.gis_tab": {ZH_CN: "GIS", EN: "GIS"},
+    "settings.interface_tab": {ZH_CN: "界面", EN: "Interface"},
+    "settings.save": {ZH_CN: "保存", EN: "Save"},
+    "settings.cancel": {ZH_CN: "取消", EN: "Cancel"},
+    "settings.qwen_group": {
+        ZH_CN: "通义千问（必需）",
+        EN: "Qwen (Required)",
+    },
+    "settings.brave_group": {
+        ZH_CN: "Brave Search（可选）",
+        EN: "Brave Search (Optional)",
+    },
+    "settings.configured": {ZH_CN: "已配置", EN: "Configured"},
+    "settings.required_missing": {
+        ZH_CN: "未配置，运行 Agent 前必须填写",
+        EN: "Missing; required before running Agents",
+    },
+    "settings.optional_missing": {
+        ZH_CN: "未配置（可选）",
+        EN: "Not configured (optional)",
+    },
+    "settings.keep_existing": {
+        ZH_CN: "留空以保留当前密钥",
+        EN: "Leave blank to keep the current key",
+    },
+    "settings.enter_required": {
+        ZH_CN: "输入项目专用 API Key",
+        EN: "Enter the project API key",
+    },
+    "settings.enter_optional": {
+        ZH_CN: "可选：输入 Brave API Key",
+        EN: "Optional: enter a Brave API key",
+    },
+    "settings.status": {ZH_CN: "状态", EN: "Status"},
+    "settings.qwen_key": {
+        ZH_CN: "通义千问 API Key",
+        EN: "Qwen API Key",
+    },
+    "settings.brave_key": {
+        ZH_CN: "Brave API Key",
+        EN: "Brave API Key",
+    },
+    "settings.qwen_note": {
+        ZH_CN: "用于多模态证据提取、候选生成与综合推理。未配置时，开始分析会自动打开本设置窗口。",
+        EN: "Used for multimodal evidence extraction, candidate generation, and joint reasoning. Starting an analysis opens Settings when it is missing.",
+    },
+    "settings.brave_note": {
+        ZH_CN: "用于候选地点的网络介绍与照片检索。未配置时仍可完成 GIS 定位，但不会弹出网络搜索结果。",
+        EN: "Used for candidate descriptions and web photos. GIS geolocation still works without it, but online search results will not open.",
+    },
+    "settings.request_timeout": {
+        ZH_CN: "请求超时",
+        EN: "Request timeout",
+    },
+    "settings.seconds_suffix": {ZH_CN: " 秒", EN: " s"},
+    "settings.keychain_note": {
+        ZH_CN: "API Key 只保存到当前用户的 macOS 钥匙串，不写入工程、App 或 Git 仓库。",
+        EN: "API keys are stored only in the current user's macOS Keychain, never in projects, the app bundle, or Git.",
+    },
+    "settings.model_group": {
+        ZH_CN: "通义千问与候选检索参数",
+        EN: "Qwen and Candidate Retrieval",
+    },
+    "settings.base_url": {
+        ZH_CN: "OpenAI 兼容地址",
+        EN: "OpenAI-compatible URL",
+    },
+    "settings.model": {ZH_CN: "模型", EN: "Model"},
+    "settings.temperature": {
+        ZH_CN: "推理温度",
+        EN: "Temperature",
+    },
+    "settings.prompt_limit": {
+        ZH_CN: "最大提示字符数",
+        EN: "Maximum prompt characters",
+    },
+    "settings.candidate_limit": {
+        ZH_CN: "候选地点上限",
+        EN: "Candidate limit",
+    },
+    "settings.model_note": {
+        ZH_CN: "保存后从下一次分析立即生效，无需重启。定位任务建议保持较低温度，以提高输出稳定性。",
+        EN: "Changes apply to the next analysis immediately, without restarting. A low temperature is recommended for stable geolocation output.",
+    },
+    "settings.postgis_group": {
+        ZH_CN: "PostGIS 空间验证（可选）",
+        EN: "PostGIS Spatial Verification (Optional)",
+    },
+    "settings.postgis_placeholder": {
+        ZH_CN: "可选：输入 PostgreSQL / PostGIS DSN",
+        EN: "Optional: enter a PostgreSQL / PostGIS DSN",
+    },
+    "settings.postgis_dsn": {
+        ZH_CN: "连接 DSN",
+        EN: "Connection DSN",
+    },
+    "settings.postgis_note": {
+        ZH_CN: "配置后优先使用 PostGIS 进行空间约束与核验，失败时回退到 OSM；连接串同样只保存于钥匙串。",
+        EN: "When configured, PostGIS is preferred for spatial constraints and verification, with OSM as fallback. The DSN is also stored only in Keychain.",
+    },
+    "settings.interface_group": {
+        ZH_CN: "语言与外观",
+        EN: "Language and Appearance",
+    },
+    "settings.language": {ZH_CN: "界面语言", EN: "Interface language"},
+    "settings.theme": {ZH_CN: "显示模式", EN: "Appearance"},
+    "settings.interface_note": {
+        ZH_CN: "语言与浅色/深色模式在保存后立即切换，并在下次启动时保留。",
+        EN: "Language and light/dark mode change immediately when saved and persist across launches.",
+    },
+    "settings.qwen_required_title": {
+        ZH_CN: "需要通义千问 API Key",
+        EN: "Qwen API Key Required",
+    },
+    "settings.qwen_required_detail": {
+        ZH_CN: "通义千问是 Agent 分析的必需服务，请输入 API Key 后保存。",
+        EN: "Qwen is required for Agent analysis. Enter an API key and save the settings.",
+    },
+    "settings.invalid_title": {
+        ZH_CN: "设置无效",
+        EN: "Invalid Settings",
+    },
+    "settings.invalid_base_url": {
+        ZH_CN: "OpenAI 兼容地址必须是 HTTPS 地址。",
+        EN: "The OpenAI-compatible endpoint must use HTTPS.",
+    },
+    "settings.invalid_model": {
+        ZH_CN: "模型名称不能为空。",
+        EN: "The model name cannot be empty.",
+    },
+    "settings.save_failed": {
+        ZH_CN: "无法保存安全配置",
+        EN: "Could Not Save Secure Settings",
+    },
+    "settings.saved": {
+        ZH_CN: "设置已保存并立即生效",
+        EN: "Settings saved and applied immediately",
     },
     "toolbar.main": {ZH_CN: "主工具栏", EN: "Main Toolbar"},
     "status.ready": {ZH_CN: "就绪", EN: "Ready"},
@@ -344,6 +487,19 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         EN: "Example: locate this photo, or find a coastal city with left-hand traffic, volcanoes, and vineyards nearby.",
     },
     "agent.import_key": {ZH_CN: "导入 API Key…", EN: "Import API Key…"},
+    "agent.services": {ZH_CN: "服务状态", EN: "Service Status"},
+    "agent.settings_hint": {
+        ZH_CN: "API、模型、算法与 GIS 参数请在菜单栏“设置 → 设置…”中统一管理。",
+        EN: "Manage APIs, models, algorithms, and GIS parameters from Settings → Settings… in the menu bar.",
+    },
+    "agent.brave_ready": {
+        ZH_CN: "Brave：已配置，可检索地点介绍与照片",
+        EN: "Brave: configured for place information and photos",
+    },
+    "agent.brave_optional": {
+        ZH_CN: "Brave：未配置（可选，不显示网络资料）",
+        EN: "Brave: not configured (optional; online material hidden)",
+    },
     "agent.run": {ZH_CN: "开始全球定位", EN: "Start Global Search"},
     "agent.export": {ZH_CN: "导出报告", EN: "Export Report"},
     "agent.new_search": {ZH_CN: "修改输入", EN: "Edit Input"},

@@ -7,6 +7,7 @@ import re
 from typing import Callable, List, Optional, Sequence, Tuple
 
 from sakugis.agent_models import Candidate, RetrievedPlace, clamp
+from sakugis.credentials import configured_candidate_limit
 from sakugis.i18n import EN, get_language
 from sakugis.osm_services import OSMServiceError, OSMServices
 from sakugis.postgis_provider import PostGISError, PostGISProvider
@@ -23,11 +24,21 @@ class HybridCandidateRetriever:
         self,
         osm: Optional[OSMServices] = None,
         postgis: Optional[PostGISProvider] = None,
-        maximum_queries: int = 8,
+        maximum_queries: Optional[int] = None,
     ):
         self.osm = osm or OSMServices()
         self.postgis = postgis or PostGISProvider()
-        self.maximum_queries = max(1, min(12, int(maximum_queries)))
+        self.maximum_queries = max(
+            1,
+            min(
+                12,
+                int(
+                    maximum_queries
+                    if maximum_queries is not None
+                    else configured_candidate_limit()
+                ),
+            ),
+        )
 
     def resolve(
         self,

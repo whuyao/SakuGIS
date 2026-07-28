@@ -52,6 +52,7 @@ from sakugis.layer_panel import LayerPanel
 from sakugis.map_defaults import WUHAN_INITIAL_EXTENT_WGS84
 from sakugis.place_details_panel import PlaceDetailsPanel
 from sakugis.reporting import write_markdown_report
+from sakugis.settings_dialog import SettingsDialog
 from sakugis.ui_components import MapHud, WelcomeOverlay
 from sakugis.ui_theme import (
     DARK,
@@ -155,6 +156,7 @@ class MainWindow(QMainWindow):
             self._activate_candidate
         )
         self.agent_panel.reportExportRequested.connect(self.export_report)
+        self.agent_panel.settingsRequested.connect(self.open_settings)
         self.agent_dock = QDockWidget(tr("dock.agents"), self)
         self.agent_dock.setObjectName("geoAgentsDock")
         self.agent_dock.setAllowedAreas(
@@ -302,6 +304,12 @@ class MainWindow(QMainWindow):
         self.exit_action.setShortcut(QKeySequence.Quit)
         self.exit_action.triggered.connect(self.close)
 
+        self.settings_action = QAction(tr("action.settings"), self)
+        self.settings_action.setShortcut(QKeySequence("Ctrl+,"))
+        self.settings_action.triggered.connect(
+            lambda _checked=False: self.open_settings()
+        )
+
         self.language_action_group = QActionGroup(self)
         self.language_action_group.setExclusive(True)
         self.chinese_action = QAction(tr("language.chinese"), self)
@@ -375,13 +383,8 @@ class MainWindow(QMainWindow):
             self.place_details_dock.toggleViewAction()
         )
 
-        self.appearance_menu = self.menuBar().addMenu(tr("menu.appearance"))
-        self.appearance_menu.addAction(self.light_theme_action)
-        self.appearance_menu.addAction(self.dark_theme_action)
-
-        self.language_menu = self.menuBar().addMenu(tr("menu.language"))
-        self.language_menu.addAction(self.chinese_action)
-        self.language_menu.addAction(self.english_action)
+        self.settings_menu = self.menuBar().addMenu(tr("menu.settings"))
+        self.settings_menu.addAction(self.settings_action)
 
         self.help_menu = self.menuBar().addMenu(tr("menu.help"))
         self.help_menu.addAction(self.show_welcome_action)
@@ -435,6 +438,26 @@ class MainWindow(QMainWindow):
         self._refresh_action_icons()
         self.canvas.refresh()
 
+    def open_settings(self, required_section: str = "") -> None:
+        dialog = SettingsDialog(self, required_section=required_section)
+        dialog.settingsApplied.connect(self._apply_settings)
+        dialog.exec_()
+
+    def _apply_settings(self, values) -> None:
+        language = str(values.get("language", get_language()))
+        theme = str(values.get("theme", get_theme()))
+        if language != get_language():
+            self._set_language(language)
+        if theme != get_theme():
+            self._set_theme(theme)
+        self.chinese_action.setChecked(get_language() == ZH_CN)
+        self.english_action.setChecked(get_language() == EN)
+        self.light_theme_action.setChecked(get_theme() == LIGHT)
+        self.dark_theme_action.setChecked(get_theme() == DARK)
+        self.agent_panel.refresh_runtime_status()
+        self.place_details_panel.settings_changed()
+        self.statusBar().showMessage(tr("settings.saved"), 4000)
+
     def _refresh_action_icons(self) -> None:
         self.open_data_action.setIcon(glyph_icon("↗"))
         self.save_project_action.setIcon(glyph_icon("↓"))
@@ -464,12 +487,12 @@ class MainWindow(QMainWindow):
         self.about_action.setText(tr("action.about"))
         self.show_welcome_action.setText(tr("action.show_welcome"))
         self.exit_action.setText(tr("action.exit"))
+        self.settings_action.setText(tr("action.settings"))
         self.file_menu.setTitle(tr("menu.file"))
         self.map_menu.setTitle(tr("menu.map"))
         self.layer_menu.setTitle(tr("menu.layer"))
         self.agent_menu.setTitle(tr("menu.agent"))
-        self.appearance_menu.setTitle(tr("menu.appearance"))
-        self.language_menu.setTitle(tr("menu.language"))
+        self.settings_menu.setTitle(tr("menu.settings"))
         self.help_menu.setTitle(tr("menu.help"))
         self.chinese_action.setText(tr("language.chinese"))
         self.english_action.setText(tr("language.english"))

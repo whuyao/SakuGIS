@@ -79,6 +79,10 @@ from qgis.core import (
 
 if os.environ.get("SAKUGIS_SMOKE_AGENT_RESULT") == "1":
     os.environ.setdefault("SAKUGIS_SMOKE_DISABLE_PLACE_SEARCH", "1")
+if os.environ.get("SAKUGIS_SMOKE_SETTINGS") == "1":
+    os.environ.setdefault(
+        "SAKUGIS_QWEN_API_KEY", "smoke-test-key-not-a-real-secret"
+    )
 
 QgsApplication.setPrefixPath(__import__("os").environ["QGIS_PREFIX_PATH"], True)
 app = QgsApplication([], True)
@@ -165,6 +169,47 @@ if smoke_theme:
 smoke_language = os.environ.get("SAKUGIS_SMOKE_LANGUAGE")
 if smoke_language:
     window._set_language(smoke_language)
+
+if os.environ.get("SAKUGIS_SMOKE_SETTINGS") == "1":
+    from sakugis.candidate_retrieval import HybridCandidateRetriever
+    from sakugis.qwen_client import QwenClient
+    from sakugis.settings_dialog import SettingsDialog
+
+    if window.settings_menu.title() not in {"设置", "Settings"}:
+        raise SystemExit("Settings menu is missing")
+    if not window.settings_action.isEnabled():
+        raise SystemExit("Settings action is disabled")
+
+    applied = []
+    dialog = SettingsDialog(window)
+    dialog.settingsApplied.connect(applied.append)
+    dialog.settingsApplied.connect(window._apply_settings)
+    dialog.model_combo.setCurrentText("qwen-settings-smoke")
+    dialog.temperature_spin.setValue(0.20)
+    dialog.qwen_timeout_spin.setValue(91)
+    dialog.prompt_limit_spin.setValue(33000)
+    dialog.candidate_limit_spin.setValue(6)
+    dialog.brave_timeout_spin.setValue(8)
+    dialog._save()
+    app.processEvents()
+
+    client = QwenClient(api_key="smoke-test-key-not-a-real-secret")
+    retriever = HybridCandidateRetriever()
+    if not applied:
+        raise SystemExit("Settings did not emit an applied event")
+    if client.model != "qwen-settings-smoke":
+        raise SystemExit("Model setting did not apply immediately")
+    if client.temperature != 0.20 or client.timeout != 91:
+        raise SystemExit("Qwen runtime settings did not apply immediately")
+    if client.max_prompt_chars != 33000:
+        raise SystemExit("Prompt limit did not apply immediately")
+    if retriever.maximum_queries != 6:
+        raise SystemExit("Candidate limit did not apply immediately")
+    if "6" not in str(
+        QgsSettings().value("sakugis/agents/candidate_limit", "")
+    ):
+        raise SystemExit("Candidate limit was not persisted")
+    print("Unified settings menu and immediate apply: OK")
 
 if os.environ.get("SAKUGIS_SMOKE_GOOGLE") == "1":
     window.add_google_satellite()

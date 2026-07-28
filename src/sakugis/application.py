@@ -116,8 +116,10 @@ def run() -> int:
     QgsApplication.setPluginPath(str(plugin_path))
 
     settings = QgsSettings()
+    from sakugis.app_settings import load_runtime_settings
     from sakugis.i18n import set_language
 
+    load_runtime_settings(settings)
     set_language(str(settings.value("sakugis/ui/language", "zh_CN")))
     from sakugis.ui_theme import apply_theme, normalize_theme
 

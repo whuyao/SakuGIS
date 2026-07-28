@@ -131,7 +131,10 @@ QGIS_APP=/Applications/QGIS.app ./scripts/run-dev.sh
 ## Qwen API configuration
 
 No API key is included in this repository. SakuGIS reads a key from the
-current user's macOS Keychain or from an environment variable.
+current user's macOS Keychain or from an environment variable. Open
+**Settings → Settings…** to enter or update the required Qwen key. Starting
+an Agent analysis opens Settings automatically when the key is missing.
+Saved changes apply without restarting.
 
 Import an Alibaba Cloud Model Studio CSV profile:
 
@@ -153,6 +156,12 @@ SAKUGIS_QWEN_MAX_PROMPT_CHARS=48000 \
 The default base URL is Alibaba Cloud's public Beijing OpenAI-compatible
 endpoint. A workspace-specific endpoint can be provided at runtime through
 `SAKUGIS_QWEN_BASE_URL`; it is intentionally not stored in this repository.
+
+The centralized Settings window also manages the endpoint, model,
+temperature, request timeouts, prompt guard, candidate limit, optional
+PostGIS DSN, interface language, and light/dark appearance. Non-secret values
+are stored in the current user's QGIS settings; credentials and the DSN are
+stored only in macOS Keychain. New values are read by the next request.
 
 Qwen calls are stateless: each stage sends only one system message and the
 current Case input, never previous location runs. Agent 1 sends one resized
@@ -179,7 +188,10 @@ verification provides a named place identity and Brave returns at least one
 valid description or image; otherwise SakuGIS keeps the candidate on the map
 and displays only a brief no-results status message.
 
-Import a local Brave key text file into the macOS Keychain:
+Brave is optional and can be configured from **Settings → Settings…**.
+Without it, GIS geolocation and candidate scoring still run, but SakuGIS does
+not open web descriptions or photo results. A local text file can also be
+imported into macOS Keychain:
 
 ```bash
 ./scripts/import-brave-key.py /path/to/brave-key.txt
@@ -203,7 +215,7 @@ Without additional configuration, SakuGIS uses:
   instead of being treated as mismatches.
 
 For production or batch workflows, connect a local OSM-backed PostGIS
-database from the Geo Agents panel. The local backend uses multilingual
+database from **Settings → Settings… → GIS**. The local backend uses multilingual
 `pg_trgm` name indexes for place lookup before spatial verification. The DSN
 is stored in the macOS Keychain. See [docs/postgis.md](docs/postgis.md).
 
@@ -220,7 +232,7 @@ it with an officially supported provider configuration for production.
 
 ## Tests
 
-The 50 non-GUI tests can run with the system Python:
+The non-GUI tests can run with the system Python:
 
 ```bash
 PYTHONPATH=src python3 -m unittest discover -s tests -v

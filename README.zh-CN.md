@@ -127,8 +127,9 @@ QGIS_APP=/Applications/QGIS.app ./scripts/run-dev.sh
 
 SakuGIS 默认使用阿里云 Model Studio 北京地域的公开 OpenAI 兼容地址，默认
 模型为 `qwen3.7-plus`。项目不包含 API Key、业务空间 ID 或项目专属地址，
-也不会把 Key 写入配置文件。首次使用时可在 Geo Agents 面板点击“导入
-API Key…”，或运行：
+也不会把 Key 写入配置文件。在菜单栏打开“设置 → 设置…”，可输入或更新
+通义千问 API Key；未配置时点击“开始全球定位”也会自动打开设置窗口。
+Key 保存后立即生效，不需要重启。开发环境仍可运行：
 
 ```bash
 ./scripts/import-api-key.py /path/to/阿里云-apiKey.csv
@@ -155,6 +156,12 @@ SAKUGIS_QWEN_MAX_PROMPT_CHARS=48000 \
 通过 `SAKUGIS_QWEN_MAX_PROMPT_CHARS` 调整最后一道保护。当前候选评分是用于
 比较候选的探索排序分数，尚未经过独立地理验证集校准，因此不是统计概率。
 
+“设置 → 设置…”也是统一的工程化配置入口，包含 API 服务、模型与算法、
+GIS 和界面四页。可调整兼容地址、模型、推理温度、请求超时、提示字符上限、
+候选地点上限、PostGIS DSN、语言及浅色/深色模式。非密钥参数保存到当前
+用户的 QGIS 设置，密钥和 DSN 只保存到 macOS 钥匙串；全部从下一次调用
+立即生效。
+
 ## 地点介绍与网络照片
 
 候选地点详情使用 Brave Search 的 Web Search 和 Image Search 接口。网络检索
@@ -167,7 +174,9 @@ SAKUGIS_QWEN_MAX_PROMPT_CHARS=48000 \
 返回一条有效介绍或一张相关照片时，Place Explorer 才会出现；否则候选仍
 保留在地图和候选表中，界面只显示简短的无结果状态提示。
 
-项目不会保存 Brave Key。可从本地文本文件安全导入 macOS 钥匙串：
+Brave 是可选服务，可在“设置 → 设置…”中输入；如果没有配置，GIS 定位与
+候选评分仍会正常完成，但不会弹出地点介绍和网络照片。也可从本地文本文件
+安全导入 macOS 钥匙串：
 
 ```bash
 ./scripts/import-brave-key.py /path/to/brave-key.txt
@@ -189,8 +198,8 @@ SAKUGIS_QWEN_MAX_PROMPT_CHARS=48000 \
 - 请求只在用户主动分析时发出，带应用 User-Agent，并进行速率控制和磁盘缓存；
 - 公共服务超时或限流时，相应检查显示为“不可用”，不会推断为匹配。
 
-生产或批量场景可连接已导入 OSM 数据的 PostgreSQL + PostGIS。Geo Agents
-面板中的“PostGIS…”按钮会把 DSN 保存到 macOS 钥匙串；连接成功后先使用
+生产或批量场景可连接已导入 OSM 数据的 PostgreSQL + PostGIS。在
+“设置 → 设置… → GIS”中输入 DSN 后会保存到 macOS 钥匙串；连接成功后先使用
 多语言名称的 `pg_trgm` 索引解析候选，再以 `ST_Covers` 做行政区反查，使用
 `ST_DWithin` / `ST_Distance` 做米制空间核验，失败时回退到 OSM 在线服务。
 数据库结构和导入要求见
@@ -224,7 +233,7 @@ Google Maps Tile API 官方文档中的受支持端点，其可用性和使用�
 
 ## 测试与回归
 
-当前 50 项非 GUI 测试可使用系统 Python 执行：
+当前非 GUI 测试可使用系统 Python 执行：
 
 ```bash
 PYTHONPATH=src python3 -m unittest discover -s tests -v
