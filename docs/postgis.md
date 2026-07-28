@@ -2,7 +2,7 @@
 
 SakuGIS 默认使用 OSM Nominatim + Overpass。需要稳定吞吐、离线运行或更大
 候选集时，可把 OSM extract 导入自有 PostgreSQL + PostGIS，并通过 Geo
-Agents 面板的“PostGIS…”按钮配置连接。
+“设置 → 设置… → GIS”配置连接。
 
 ## 规范化表
 
@@ -35,7 +35,8 @@ postgresql://sakugis_reader:password@127.0.0.1:5432/sakugis
 ```
 
 DSN 会保存到当前用户的 macOS 钥匙串
-`net.urbancomp.sakugis.postgis`，不会写入工程。也可仅为当前进程设置：
+`net.urbancomp.sakugis.postgis`，不会写入工程；保存后从下一次分析立即
+生效，无需重启。也可仅为当前进程设置：
 
 ```bash
 SAKUGIS_POSTGIS_DSN='postgresql://...' ./scripts/run-dev.sh

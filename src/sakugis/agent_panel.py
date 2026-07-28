@@ -12,9 +12,7 @@ from qgis.PyQt.QtWidgets import (
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
-    QInputDialog,
     QLabel,
-    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMessageBox,
@@ -32,11 +30,9 @@ from qgis.PyQt.QtWidgets import (
 
 from sakugis.agent_models import MAX_CASE_PHOTOS, Candidate, GeoAnalysisResult
 from sakugis.credentials import (
-    CredentialError,
     configured_model,
     has_api_key,
-    import_profile_csv,
-    store_postgis_dsn,
+    has_brave_api_key,
 )
 from sakugis.geo_agents import GeoAgentPipeline
 from sakugis.i18n import tr
@@ -72,6 +68,7 @@ class AgentPanel(QWidget):
     candidateSelected = pyqtSignal(object)
     candidateActivated = pyqtSignal(object)
     reportExportRequested = pyqtSignal()
+    settingsRequested = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -145,20 +142,20 @@ class AgentPanel(QWidget):
         query_layout = QVBoxLayout(self.query_group)
         query_layout.addWidget(self.query_edit)
 
-        api_row = QHBoxLayout()
+        self.service_group = QGroupBox(tr("agent.services"), self)
+        service_layout = QVBoxLayout(self.service_group)
+        service_layout.setContentsMargins(9, 8, 9, 8)
+        service_layout.setSpacing(4)
         self.api_status = QLabel(self)
-        self.import_key_button = QPushButton(tr("agent.import_key"), self)
-        self.import_key_button.clicked.connect(self._import_api_key)
-        api_row.addWidget(self.api_status, 1)
-        api_row.addWidget(self.import_key_button)
+        self.brave_status = QLabel(self)
         self.gis_status = QLabel(self)
-        self.configure_postgis_button = QPushButton(
-            tr("agent.configure_postgis"), self
-        )
-        self.configure_postgis_button.clicked.connect(self._configure_postgis)
-        gis_row = QHBoxLayout()
-        gis_row.addWidget(self.gis_status, 1)
-        gis_row.addWidget(self.configure_postgis_button)
+        self.settings_hint = QLabel(tr("agent.settings_hint"), self)
+        self.settings_hint.setObjectName("MutedLabel")
+        self.settings_hint.setWordWrap(True)
+        service_layout.addWidget(self.api_status)
+        service_layout.addWidget(self.brave_status)
+        service_layout.addWidget(self.gis_status)
+        service_layout.addWidget(self.settings_hint)
 
         run_row = QHBoxLayout()
         self.run_button = QPushButton(tr("agent.run"), self)
@@ -257,8 +254,7 @@ class AgentPanel(QWidget):
         layout.addLayout(step_row)
         layout.addWidget(self.photo_group)
         layout.addWidget(self.query_group)
-        layout.addLayout(api_row)
-        layout.addLayout(gis_row)
+        layout.addWidget(self.service_group)
         layout.addLayout(run_row)
         layout.addWidget(self.progress_label)
         layout.addWidget(self.result_splitter, 1)
@@ -290,8 +286,8 @@ class AgentPanel(QWidget):
             self.preview.setText(tr("agent.no_photo"))
         self.query_group.setTitle(tr("agent.query"))
         self.query_edit.setPlaceholderText(tr("agent.query_hint"))
-        self.import_key_button.setText(tr("agent.import_key"))
-        self.configure_postgis_button.setText(tr("agent.configure_postgis"))
+        self.service_group.setTitle(tr("agent.services"))
+        self.settings_hint.setText(tr("agent.settings_hint"))
         self.run_button.setText(tr("agent.run"))
         self.export_button.setText(tr("agent.export"))
         self.new_search_button.setText(tr("agent.new_search"))
@@ -468,27 +464,6 @@ class AgentPanel(QWidget):
         self._image_paths = []
         self._refresh_photo_list()
 
-    def _import_api_key(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            tr("agent.import_title"),
-            str(Path.home()),
-            tr("agent.csv_filter"),
-        )
-        if not path:
-            return
-        try:
-            import_profile_csv(path)
-        except CredentialError as exc:
-            QMessageBox.critical(self, tr("agent.key_import_failed"), str(exc))
-            return
-        self._refresh_key_status()
-        QMessageBox.information(
-            self,
-            tr("agent.key_imported"),
-            tr("agent.key_imported_detail"),
-        )
-
     def _refresh_key_status(self) -> None:
         if has_api_key():
             self.api_status.setText(
@@ -498,8 +473,15 @@ class AgentPanel(QWidget):
         else:
             self.api_status.setText(tr("agent.key_missing"))
             self.api_status.setObjectName("StatusWarning")
-        self.api_status.style().unpolish(self.api_status)
-        self.api_status.style().polish(self.api_status)
+        if has_brave_api_key():
+            self.brave_status.setText(tr("agent.brave_ready"))
+            self.brave_status.setObjectName("StatusGood")
+        else:
+            self.brave_status.setText(tr("agent.brave_optional"))
+            self.brave_status.setObjectName("StatusInfo")
+        for label in (self.api_status, self.brave_status):
+            label.style().unpolish(label)
+            label.style().polish(label)
 
     def _refresh_gis_status(self) -> None:
         if PostGISConfig.from_environment().enabled:
@@ -510,26 +492,9 @@ class AgentPanel(QWidget):
         self.gis_status.style().unpolish(self.gis_status)
         self.gis_status.style().polish(self.gis_status)
 
-    def _configure_postgis(self) -> None:
-        dsn, accepted = QInputDialog.getText(
-            self,
-            tr("agent.postgis_title"),
-            tr("agent.postgis_prompt"),
-            QLineEdit.Password,
-        )
-        if not accepted or not dsn.strip():
-            return
-        try:
-            store_postgis_dsn(dsn)
-        except CredentialError as exc:
-            QMessageBox.critical(self, tr("agent.postgis_failed"), str(exc))
-            return
+    def refresh_runtime_status(self) -> None:
+        self._refresh_key_status()
         self._refresh_gis_status()
-        QMessageBox.information(
-            self,
-            tr("agent.postgis_title"),
-            tr("agent.postgis_saved"),
-        )
 
     def _start_analysis(self) -> None:
         if self.is_busy():
@@ -541,11 +506,7 @@ class AgentPanel(QWidget):
             )
             return
         if not has_api_key():
-            QMessageBox.warning(
-                self,
-                tr("agent.key_required"),
-                tr("agent.key_required_detail"),
-            )
+            self.settingsRequested.emit("qwen")
             return
 
         self.evidence_tree.clear()

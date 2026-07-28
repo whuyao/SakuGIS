@@ -16,6 +16,11 @@ POSTGIS_KEYCHAIN_SERVICE = "net.urbancomp.sakugis.postgis"
 BRAVE_KEYCHAIN_SERVICE = "net.urbancomp.sakugis.brave"
 DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 DEFAULT_MODEL = "qwen3.7-plus"
+DEFAULT_QWEN_TEMPERATURE = 0.15
+DEFAULT_QWEN_TIMEOUT = 120
+DEFAULT_MAX_PROMPT_CHARS = 48000
+DEFAULT_CANDIDATE_LIMIT = 8
+DEFAULT_BRAVE_TIMEOUT = 5
 
 
 class CredentialError(RuntimeError):
@@ -146,6 +151,68 @@ def configured_base_url() -> str:
 
 def configured_model() -> str:
     return os.environ.get("SAKUGIS_QWEN_MODEL", DEFAULT_MODEL).strip()
+
+
+def configured_qwen_temperature() -> float:
+    try:
+        value = float(
+            os.environ.get(
+                "SAKUGIS_QWEN_TEMPERATURE",
+                str(DEFAULT_QWEN_TEMPERATURE),
+            )
+        )
+    except ValueError:
+        value = DEFAULT_QWEN_TEMPERATURE
+    return max(0.0, min(1.0, value))
+
+
+def configured_qwen_timeout() -> int:
+    return _configured_int(
+        "SAKUGIS_QWEN_TIMEOUT",
+        DEFAULT_QWEN_TIMEOUT,
+        30,
+        300,
+    )
+
+
+def configured_prompt_char_limit() -> int:
+    return _configured_int(
+        "SAKUGIS_QWEN_MAX_PROMPT_CHARS",
+        DEFAULT_MAX_PROMPT_CHARS,
+        8000,
+        120000,
+    )
+
+
+def configured_candidate_limit() -> int:
+    return _configured_int(
+        "SAKUGIS_AGENT_CANDIDATE_LIMIT",
+        DEFAULT_CANDIDATE_LIMIT,
+        1,
+        12,
+    )
+
+
+def configured_brave_timeout() -> int:
+    return _configured_int(
+        "SAKUGIS_BRAVE_TIMEOUT",
+        DEFAULT_BRAVE_TIMEOUT,
+        3,
+        30,
+    )
+
+
+def _configured_int(
+    environment_key: str,
+    default: int,
+    minimum: int,
+    maximum: int,
+) -> int:
+    try:
+        value = int(os.environ.get(environment_key, str(default)))
+    except ValueError:
+        value = default
+    return max(minimum, min(maximum, value))
 
 
 def store_postgis_dsn(dsn: str) -> None:

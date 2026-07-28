@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 import json
 import mimetypes
-import os
 import subprocess
 import tempfile
 import urllib.error
@@ -16,10 +15,12 @@ from typing import Any, Dict, List, Optional
 from sakugis.credentials import (
     configured_base_url,
     configured_model,
+    configured_prompt_char_limit,
+    configured_qwen_temperature,
+    configured_qwen_timeout,
     get_api_key,
 )
 from sakugis.i18n import tr
-from sakugis.prompt_budget import QWEN_TOTAL_PROMPT_CHAR_LIMIT
 
 
 class QwenApiError(RuntimeError):
@@ -107,17 +108,27 @@ class QwenClient:
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
         model: Optional[str] = None,
-        timeout: int = 120,
+        timeout: Optional[int] = None,
+        temperature: Optional[float] = None,
         max_prompt_chars: Optional[int] = None,
     ):
         self.api_key = api_key or get_api_key()
         self.base_url = (base_url or configured_base_url()).rstrip("/")
         self.model = model or configured_model()
-        self.timeout = timeout
+        self.timeout = (
+            max(30, min(300, int(timeout)))
+            if timeout is not None
+            else configured_qwen_timeout()
+        )
+        self.temperature = (
+            max(0.0, min(1.0, float(temperature)))
+            if temperature is not None
+            else configured_qwen_temperature()
+        )
         self.max_prompt_chars = (
             max(128, int(max_prompt_chars))
             if max_prompt_chars is not None
-            else _configured_prompt_char_limit()
+            else configured_prompt_char_limit()
         )
         self.last_request_stats: Dict[str, int] = {}
 
@@ -171,7 +182,7 @@ class QwenClient:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content},
             ],
-            "temperature": 0.15,
+            "temperature": self.temperature,
             "max_tokens": max_tokens,
             "enable_thinking": False,
             "response_format": {"type": "json_object"},
@@ -258,16 +269,6 @@ class QwenClient:
         if not isinstance(payload, dict):
             raise QwenApiError(tr("error.api_invalid_response"))
         return payload
-
-
-def _configured_prompt_char_limit() -> int:
-    raw = os.environ.get("SAKUGIS_QWEN_MAX_PROMPT_CHARS", "")
-    try:
-        configured = int(raw) if raw else QWEN_TOTAL_PROMPT_CHAR_LIMIT
-    except ValueError:
-        configured = QWEN_TOTAL_PROMPT_CHAR_LIMIT
-    return max(8000, min(200000, configured))
-
 
 def _response_text(response: Dict[str, Any]) -> str:
     try:

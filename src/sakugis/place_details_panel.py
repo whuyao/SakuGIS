@@ -27,7 +27,7 @@ from qgis.PyQt.QtWidgets import (
 )
 
 from sakugis.agent_models import Candidate
-from sakugis.credentials import has_brave_api_key
+from sakugis.credentials import configured_brave_timeout, has_brave_api_key
 from sakugis.i18n import get_language, tr
 from sakugis.place_search import (
     BraveSearchClient,
@@ -150,6 +150,13 @@ class PlaceDetailsPanel(QWidget):
     def current_candidate(self) -> Optional[Candidate]:
         return self._candidate
 
+    def settings_changed(self) -> None:
+        """Apply credential and timeout changes without restarting the app."""
+
+        self._cache.clear()
+        if self._candidate is not None:
+            self.set_candidate(self._candidate, force_refresh=True)
+
     def set_candidate(
         self, candidate: Candidate, force_refresh: bool = False
     ) -> None:
@@ -235,7 +242,10 @@ class PlaceDetailsPanel(QWidget):
         cancellation: threading.Event,
     ) -> None:
         try:
-            client = BraveSearchClient(cache=self._cache, timeout=5)
+            client = BraveSearchClient(
+                cache=self._cache,
+                timeout=configured_brave_timeout(),
+            )
             details = client.search_place(
                 candidate,
                 language,
