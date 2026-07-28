@@ -6,6 +6,22 @@ SakuGIS 是一款面向 macOS 的轻量桌面 GIS 应用。当前版本以 QGIS 
 作为 GIS 内核，提供在线底图、本地 GIS 数据加载、图层管理、地图漫游和
 QGIS 工程保存能力。由 [UrbanComp 团队](https://urbancomp.net)开发。
 
+## 下载
+
+当前可安装版本为
+**[SakuGIS 0.3.0 — Apple Silicon 测试版](https://github.com/whuyao/SakuGIS/releases/tag/v0.3.0)**。
+
+[下载 DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.3.0/SakuGIS-0.3.0-Apple-Silicon.dmg)
+·
+[SHA-256 校验文件](https://github.com/whuyao/SakuGIS/releases/download/v0.3.0/SakuGIS-0.3.0-Apple-Silicon.sha256.txt)
+·
+[版本说明与注意事项](https://github.com/whuyao/SakuGIS/releases/tag/v0.3.0)
+
+安装包支持 macOS 13 或更高版本，仅支持 Apple Silicon。DMG 约 1.7 GB，
+已包含独立 QGIS 运行时，无需另行安装 QGIS。当前测试包采用 ad-hoc 签名且
+尚未经过 Apple 公证；首次启动时可能需要在 Finder 中右键 SakuGIS 并选择
+“打开”。
+
 ## 当前功能
 
 - OpenStreetMap 在线底图
