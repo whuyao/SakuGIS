@@ -8,6 +8,23 @@ PostGIS, and a three-agent Qwen workflow in a bilingual interface.
 
 Developed by the [UrbanComp team](https://urbancomp.net).
 
+## Download
+
+The current installable build is
+**[SakuGIS 0.3.0 — Apple Silicon Test Build](https://github.com/whuyao/SakuGIS/releases/tag/v0.3.0)**.
+
+[Download DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.3.0/SakuGIS-0.3.0-Apple-Silicon.dmg)
+·
+[SHA-256](https://github.com/whuyao/SakuGIS/releases/download/v0.3.0/SakuGIS-0.3.0-Apple-Silicon.sha256.txt)
+·
+[Release notes](https://github.com/whuyao/SakuGIS/releases/tag/v0.3.0)
+
+The package requires macOS 13 or later and an Apple Silicon Mac. It is about
+1.7 GB because it includes an independent QGIS runtime; a separate QGIS
+installation is not required. This test build is ad-hoc signed and not
+Apple-notarized, so on first launch you may need to right-click SakuGIS in
+Finder and choose **Open**.
+
 > SakuGIS is research software. Candidate scores are ranking signals, not
 > calibrated probabilities, and should not be used as the sole basis for
 > high-stakes decisions.
