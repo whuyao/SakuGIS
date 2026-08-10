@@ -117,6 +117,9 @@ class SettingsDialog(QDialog):
             )
         )
         qwen_layout.addRow(tr("settings.status"), self.qwen_status)
+        self.base_url_edit = QLineEdit(configured_base_url(), qwen_group)
+        self.base_url_edit.setClearButtonEnabled(True)
+        qwen_layout.addRow(tr("settings.base_url"), self.base_url_edit)
         qwen_layout.addRow(tr("settings.qwen_key"), self.qwen_key_edit)
         qwen_note = QLabel(tr("settings.qwen_note"), qwen_group)
         qwen_note.setObjectName("MutedLabel")
@@ -168,8 +171,6 @@ class SettingsDialog(QDialog):
 
         model_group = QGroupBox(tr("settings.model_group"), tab)
         form = QFormLayout(model_group)
-        self.base_url_edit = QLineEdit(configured_base_url(), model_group)
-        self.base_url_edit.setClearButtonEnabled(True)
         self.model_combo = QComboBox(model_group)
         self.model_combo.setEditable(True)
         self.model_combo.addItems(
@@ -204,7 +205,6 @@ class SettingsDialog(QDialog):
         self.candidate_limit_spin.setRange(1, 12)
         self.candidate_limit_spin.setValue(configured_candidate_limit())
 
-        form.addRow(tr("settings.base_url"), self.base_url_edit)
         form.addRow(tr("settings.model"), self.model_combo)
         form.addRow(tr("settings.temperature"), self.temperature_spin)
         form.addRow(
@@ -320,7 +320,7 @@ class SettingsDialog(QDialog):
                 tr("settings.invalid_title"),
                 tr("settings.invalid_base_url"),
             )
-            self.tabs.setCurrentIndex(1)
+            self.tabs.setCurrentIndex(0)
             self.base_url_edit.setFocus()
             return
         if not model:

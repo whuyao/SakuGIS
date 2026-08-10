@@ -2,13 +2,24 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from datetime import datetime
+import os
+from pathlib import Path
 import re
 from typing import Optional
 
-from qgis.PyQt.QtCore import QPoint, QTimer, Qt, QVariant
-from qgis.PyQt.QtGui import QColor, QKeySequence
+from qgis.PyQt.QtCore import (
+    QObject,
+    QPoint,
+    QThread,
+    QTimer,
+    Qt,
+    QUrl,
+    QVariant,
+    pyqtSignal,
+    pyqtSlot,
+)
+from qgis.PyQt.QtGui import QColor, QDesktopServices, QKeySequence
 from qgis.PyQt.QtWidgets import (
     QAction,
     QActionGroup,
@@ -49,7 +60,7 @@ from sakugis.agent_models import Candidate, GeoAnalysisResult
 from sakugis.agent_panel import AgentPanel
 from sakugis.i18n import EN, ZH_CN, get_language, set_language, tr
 from sakugis.layer_panel import LayerPanel
-from sakugis.map_defaults import WUHAN_INITIAL_EXTENT_WGS84
+from sakugis.map_defaults import choose_startup_city
 from sakugis.place_details_panel import PlaceDetailsPanel
 from sakugis.reporting import write_markdown_report
 from sakugis.settings_dialog import SettingsDialog
@@ -62,6 +73,29 @@ from sakugis.ui_theme import (
     glyph_icon,
     theme_colors,
 )
+from sakugis.update_checker import (
+    UpdateCheckError,
+    UpdateStatus,
+    fetch_update_status,
+)
+from sakugis import __version__
+
+
+class UpdateCheckWorker(QObject):
+    """Run the network check without blocking map interaction."""
+
+    resultReady = pyqtSignal(object)
+    failed = pyqtSignal(str)
+    finished = pyqtSignal()
+
+    @pyqtSlot()
+    def run(self) -> None:
+        try:
+            self.resultReady.emit(fetch_update_status(__version__))
+        except UpdateCheckError as exc:
+            self.failed.emit(str(exc))
+        finally:
+            self.finished.emit()
 
 
 class CandidatePanTool(QgsMapToolPan):
@@ -115,6 +149,11 @@ class MainWindow(QMainWindow):
         self._current_scale = None
         self._candidates_by_id = {}
         self._place_details_available = False
+        self._update_thread = None
+        self._update_worker = None
+        self.startup_city = choose_startup_city(
+            os.environ.get("SAKUGIS_STARTUP_CITY", "")
+        )
 
         self.project = QgsProject.instance()
         self._shutting_down = False
@@ -631,9 +670,11 @@ class MainWindow(QMainWindow):
     def _set_initial_extent(self) -> None:
         source_crs = QgsCoordinateReferenceSystem("EPSG:4326")
         destination_crs = self.canvas.mapSettings().destinationCrs()
-        transform = QgsCoordinateTransform(source_crs, destination_crs, self.project)
-        wuhan = QgsRectangle(*WUHAN_INITIAL_EXTENT_WGS84)
-        self.canvas.setExtent(transform.transformBoundingBox(wuhan))
+        transform = QgsCoordinateTransform(
+            source_crs, destination_crs, self.project
+        )
+        startup_extent = QgsRectangle(*self.startup_city.extent_wgs84)
+        self.canvas.setExtent(transform.transformBoundingBox(startup_extent))
         self.canvas.refresh()
 
     def _update_coordinates(self, point) -> None:
@@ -735,7 +776,7 @@ class MainWindow(QMainWindow):
         if not self.project.mapLayers():
             self.add_osm_basemap()
             # The layer-tree bridge may apply the global XYZ extent on the
-            # next event-loop turn, so restore Wuhan after that update.
+            # next event-loop turn, so restore this launch's city afterwards.
             QTimer.singleShot(150, self._set_initial_extent)
             if not self.project.fileName():
                 self.project.setDirty(False)
@@ -1360,10 +1401,97 @@ class MainWindow(QMainWindow):
         self.attribution_status.setText(" · ".join(dict.fromkeys(attributions)))
 
     def show_about(self) -> None:
-        QMessageBox.about(
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Information)
+        box.setWindowTitle(tr("about.title"))
+        box.setTextFormat(Qt.RichText)
+        box.setText(tr("about.body"))
+        check_button = box.addButton(
+            tr("update.check_button"), QMessageBox.ActionRole
+        )
+        close_button = box.addButton(
+            tr("update.close_button"), QMessageBox.RejectRole
+        )
+        box.setDefaultButton(close_button)
+        box.exec_()
+        if box.clickedButton() is check_button:
+            self.check_for_updates()
+
+    def check_for_updates(self) -> None:
+        if self._update_thread and self._update_thread.isRunning():
+            self.statusBar().showMessage(tr("update.checking"), 3000)
+            return
+
+        self.statusBar().showMessage(tr("update.checking"), 0)
+        thread = QThread(self)
+        worker = UpdateCheckWorker()
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.resultReady.connect(self._show_update_result)
+        worker.failed.connect(self._show_update_error)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(self._update_check_finished)
+        self._update_thread = thread
+        self._update_worker = worker
+        thread.start()
+
+    def _update_check_finished(self) -> None:
+        self._update_thread = None
+        self._update_worker = None
+
+    def _show_update_result(self, status: UpdateStatus) -> None:
+        if self._shutting_down:
+            return
+        self.statusBar().clearMessage()
+        if not status.update_available:
+            QMessageBox.information(
+                self,
+                tr("update.current_title"),
+                tr("update.current_detail", version=__version__),
+            )
+            return
+
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Information)
+        box.setWindowTitle(tr("update.available_title"))
+        box.setText(
+            tr(
+                "update.available_detail",
+                current=__version__,
+                latest=status.latest_version,
+            )
+        )
+        download_button = None
+        if status.download_url:
+            download_button = box.addButton(
+                tr("update.download_button"), QMessageBox.AcceptRole
+            )
+        notes_button = box.addButton(
+            tr("update.notes_button"), QMessageBox.ActionRole
+        )
+        later_button = box.addButton(
+            tr("update.later_button"), QMessageBox.RejectRole
+        )
+        box.setDefaultButton(download_button or notes_button)
+        box.exec_()
+        clicked = box.clickedButton()
+        if download_button is not None and clicked is download_button:
+            QDesktopServices.openUrl(QUrl(status.download_url))
+        elif clicked is notes_button and status.release_url:
+            QDesktopServices.openUrl(QUrl(status.release_url))
+        elif clicked is later_button:
+            return
+
+    def _show_update_error(self, _detail: str) -> None:
+        if self._shutting_down:
+            return
+        self.statusBar().clearMessage()
+        QMessageBox.warning(
             self,
-            tr("about.title"),
-            tr("about.body"),
+            tr("update.error_title"),
+            tr("update.error_detail"),
         )
 
     def _confirm_discard_changes(self) -> bool:
@@ -1413,6 +1541,10 @@ class MainWindow(QMainWindow):
         if self._shutting_down:
             return
         self._shutting_down = True
+        update_thread = self._update_thread
+        if update_thread and update_thread.isRunning():
+            update_thread.quit()
+            update_thread.wait(9000)
         self._save_place_details_geometry()
         self.place_details_panel.shutdown()
         try:

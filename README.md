@@ -11,13 +11,17 @@ Developed by the [UrbanComp team](https://urbancomp.net).
 ## Download
 
 The current installable build is
-**[SakuGIS 0.3.0 — Apple Silicon Test Build](https://github.com/whuyao/SakuGIS/releases/tag/v0.3.0)**.
+**[SakuGIS 0.3.1 — Apple Silicon Test Build](https://github.com/whuyao/SakuGIS/releases/tag/v0.3.1)**.
 
-[Download DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.3.0/SakuGIS-0.3.0-Apple-Silicon.dmg)
+[Download DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.3.1/SakuGIS-0.3.1-Apple-Silicon.dmg)
 ·
-[SHA-256](https://github.com/whuyao/SakuGIS/releases/download/v0.3.0/SakuGIS-0.3.0-Apple-Silicon.sha256.txt)
+[SHA-256](https://github.com/whuyao/SakuGIS/releases/download/v0.3.1/SakuGIS-0.3.1-Apple-Silicon.sha256.txt)
 ·
-[Release notes](https://github.com/whuyao/SakuGIS/releases/tag/v0.3.0)
+[Release notes](https://github.com/whuyao/SakuGIS/releases/tag/v0.3.1)
+
+Version 0.3.1 keeps the Qwen endpoint and API key together while clearly
+distinguishing their roles, applies compatible-service changes immediately,
+and selects the startup map from 24 major world cities at random.
 
 The package requires macOS 13 or later and an Apple Silicon Mac. It is about
 1.7 GB because it includes an independent QGIS runtime; a separate QGIS
@@ -37,7 +41,9 @@ Finder and choose **Open**.
 - Layer visibility, ordering, renaming, opacity, and candidate navigation.
 - Chinese and English runtime UI.
 - Persistent light and dark appearance modes.
-- Wuhan, Hubei is the default startup map view.
+- **About SakuGIS** can check GitHub Releases for updates and open either the
+  Apple Silicon DMG download or the release notes when a newer build exists.
+- Each launch opens on one of 24 major world cities selected at random; the chosen city remains the initial extent for that session.
 - Multi-photo Case workspace: jointly analyze up to six photos captured at
   the same location, while retaining single-photo and text-only queries.
   Each photo is sent in its own vision request, then evidence is merged
@@ -69,7 +75,7 @@ Finder and choose **Open**.
   <tr>
     <td width="50%">
       <img src="docs/images/wuhan-light-workspace.webp" alt="SakuGIS light workspace centered on Wuhan">
-      <br><sub><b>Light workspace</b> — start in Wuhan with map layers, up to six Case photos, text queries, Qwen status, and the OSM/PostGIS verifier in one window.</sub>
+      <br><sub><b>Light workspace</b> — Wuhan was the randomly selected startup city in this screenshot; manage map layers, up to six Case photos, text queries, Qwen status, and the OSM/PostGIS verifier in one window.</sub>
     </td>
     <td width="50%">
       <img src="docs/images/global-candidates.webp" alt="SakuGIS global candidate search">
@@ -149,9 +155,11 @@ QGIS_APP=/Applications/QGIS.app ./scripts/run-dev.sh
 
 No API key is included in this repository. SakuGIS reads a key from the
 current user's macOS Keychain or from an environment variable. Open
-**Settings → Settings…** to enter or update the required Qwen key. Starting
-an Agent analysis opens Settings automatically when the key is missing.
-Saved changes apply without restarting.
+**Settings → Settings…** to enter or update both the Qwen endpoint and the
+required API key. The endpoint selects the OpenAI-compatible service; the key
+is that service's access credential, and users can edit them independently.
+Starting an Agent analysis opens Settings automatically when the key is
+missing. Saved changes apply without restarting.
 
 Import an Alibaba Cloud Model Studio CSV profile:
 
@@ -174,8 +182,9 @@ The default base URL is Alibaba Cloud's public Beijing OpenAI-compatible
 endpoint. A workspace-specific endpoint can be provided at runtime through
 `SAKUGIS_QWEN_BASE_URL`; it is intentionally not stored in this repository.
 
-The centralized Settings window also manages the endpoint, model,
-temperature, request timeouts, prompt guard, candidate limit, optional
+The centralized Settings window keeps the Qwen endpoint and API key together
+on its API Services page. It also manages the model, temperature, request
+timeouts, prompt guard, candidate limit, optional
 PostGIS DSN, interface language, and light/dark appearance. Non-secret values
 are stored in the current user's QGIS settings; credentials and the DSN are
 stored only in macOS Keychain. New values are read by the next request.

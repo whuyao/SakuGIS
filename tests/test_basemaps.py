@@ -7,10 +7,7 @@ from sakugis.basemaps import (
     GOOGLE_SATELLITE_SOURCE_URL,
     OSM,
 )
-from sakugis.map_defaults import (
-    WUHAN_CENTER_WGS84,
-    WUHAN_INITIAL_EXTENT_WGS84,
-)
+from sakugis.map_defaults import STARTUP_CITIES, choose_startup_city
 
 
 class BasemapDefinitionTests(unittest.TestCase):
@@ -40,13 +37,18 @@ class BasemapDefinitionTests(unittest.TestCase):
         )
         self.assertIn("https://mt2.google.com", GOOGLE_SATELLITE_FALLBACK.uri)
 
-    def test_initial_extent_contains_wuhan(self):
-        longitude, latitude = WUHAN_CENTER_WGS84
-        west, south, east, north = WUHAN_INITIAL_EXTENT_WGS84
-        self.assertLess(west, longitude)
-        self.assertLess(longitude, east)
-        self.assertLess(south, latitude)
-        self.assertLess(latitude, north)
+    def test_startup_city_extents_contain_each_city(self):
+        self.assertGreaterEqual(len(STARTUP_CITIES), 20)
+        for city in STARTUP_CITIES:
+            west, south, east, north = city.extent_wgs84
+            self.assertLess(west, city.longitude)
+            self.assertLess(city.longitude, east)
+            self.assertLess(south, city.latitude)
+            self.assertLess(city.latitude, north)
+
+    def test_startup_city_can_be_overridden_for_repeatable_runs(self):
+        city = choose_startup_city("tokyo")
+        self.assertEqual(city.name_en, "Tokyo")
 
 
 if __name__ == "__main__":

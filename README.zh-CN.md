@@ -9,13 +9,16 @@ QGIS 工程保存能力。由 [UrbanComp 团队](https://urbancomp.net)开发。
 ## 下载
 
 当前可安装版本为
-**[SakuGIS 0.3.0 — Apple Silicon 测试版](https://github.com/whuyao/SakuGIS/releases/tag/v0.3.0)**。
+**[SakuGIS 0.3.1 — Apple Silicon 测试版](https://github.com/whuyao/SakuGIS/releases/tag/v0.3.1)**。
 
-[下载 DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.3.0/SakuGIS-0.3.0-Apple-Silicon.dmg)
+[下载 DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.3.1/SakuGIS-0.3.1-Apple-Silicon.dmg)
 ·
-[SHA-256 校验文件](https://github.com/whuyao/SakuGIS/releases/download/v0.3.0/SakuGIS-0.3.0-Apple-Silicon.sha256.txt)
+[SHA-256 校验文件](https://github.com/whuyao/SakuGIS/releases/download/v0.3.1/SakuGIS-0.3.1-Apple-Silicon.sha256.txt)
 ·
-[版本说明与注意事项](https://github.com/whuyao/SakuGIS/releases/tag/v0.3.0)
+[版本说明与注意事项](https://github.com/whuyao/SakuGIS/releases/tag/v0.3.1)
+
+0.3.1 将 Qwen 接口地址与 API Key 集中到同一设置区域并明确区分，支持保存后
+立即切换兼容服务；启动地图改为从 24 座全球大城市中随机选择。
 
 安装包支持 macOS 13 或更高版本，仅支持 Apple Silicon。DMG 约 1.7 GB，
 已包含独立 QGIS 运行时，无需另行安装 QGIS。当前测试包采用 ad-hoc 签名且
@@ -56,7 +59,9 @@ QGIS 工程保存能力。由 [UrbanComp 团队](https://urbancomp.net)开发。
   网络资料时才会显示
 - 中文 / English 运行时界面切换（“语言 / Language”菜单）
 - 浅色 / 深色外观切换并记住用户选择
-- 启动地图默认定位到湖北省武汉市
+- “关于 SakuGIS”提供 GitHub Release 更新检查；发现新版本时可直接打开
+  Apple Silicon DMG 下载页或版本说明
+- 每次启动随机定位到 24 座全球大城市之一，同一次运行中可随时回到该初始城市
 - 深色“城市观测台”界面、首次使用引导、地图 HUD 和三阶段进度提示
 - 将完整查询、证据、候选与 GIS 核验导出为中英文 Markdown 报告
 
@@ -66,7 +71,7 @@ QGIS 工程保存能力。由 [UrbanComp 团队](https://urbancomp.net)开发。
   <tr>
     <td width="50%">
       <img src="docs/images/wuhan-light-workspace.webp" alt="SakuGIS 浅色模式武汉工作区">
-      <br><sub><b>浅色工作区</b>——从武汉启动，在同一窗口管理地图图层、最多 6 张 Case 照片、查询文本、千问状态和 OSM/PostGIS 核验。</sub>
+      <br><sub><b>浅色工作区</b>——本截图的随机初始城市为武汉；在同一窗口管理地图图层、最多 6 张 Case 照片、查询文本、千问状态和 OSM/PostGIS 核验。</sub>
     </td>
     <td width="50%">
       <img src="docs/images/global-candidates.webp" alt="SakuGIS 全球候选位置">
@@ -144,8 +149,10 @@ QGIS_APP=/Applications/QGIS.app ./scripts/run-dev.sh
 SakuGIS 默认使用阿里云 Model Studio 北京地域的公开 OpenAI 兼容地址，默认
 模型为 `qwen3.7-plus`。项目不包含 API Key、业务空间 ID 或项目专属地址，
 也不会把 Key 写入配置文件。在菜单栏打开“设置 → 设置…”，可输入或更新
-通义千问 API Key；未配置时点击“开始全球定位”也会自动打开设置窗口。
-Key 保存后立即生效，不需要重启。开发环境仍可运行：
+通义千问 API Key 和 OpenAI 兼容接口地址。接口地址决定请求发往哪个服务，
+API Key 是该服务的访问凭证，两者均可由用户独立修改；未配置 Key 时点击
+“开始全球定位”也会自动打开设置窗口。保存后立即生效，不需要重启。
+开发环境仍可运行：
 
 ```bash
 ./scripts/import-api-key.py /path/to/阿里云-apiKey.csv
@@ -173,7 +180,8 @@ SAKUGIS_QWEN_MAX_PROMPT_CHARS=48000 \
 比较候选的探索排序分数，尚未经过独立地理验证集校准，因此不是统计概率。
 
 “设置 → 设置…”也是统一的工程化配置入口，包含 API 服务、模型与算法、
-GIS 和界面四页。可调整兼容地址、模型、推理温度、请求超时、提示字符上限、
+GIS 和界面四页。Qwen 接口地址与 API Key 集中在 API 服务页；还可调整模型、
+推理温度、请求超时、提示字符上限、
 候选地点上限、PostGIS DSN、语言及浅色/深色模式。非密钥参数保存到当前
 用户的 QGIS 设置，密钥和 DSN 只保存到 macOS 钥匙串；全部从下一次调用
 立即生效。
