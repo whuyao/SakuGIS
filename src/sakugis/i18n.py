@@ -242,8 +242,8 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         EN: "Brave API Key",
     },
     "settings.qwen_note": {
-        ZH_CN: "用于多模态证据提取、候选生成与综合推理。未配置时，开始分析会自动打开本设置窗口。",
-        EN: "Used for multimodal evidence extraction, candidate generation, and joint reasoning. Starting an analysis opens Settings when it is missing.",
+        ZH_CN: "接口地址决定请求发送到哪个 OpenAI 兼容服务，API Key 是该服务的访问凭证，两者可独立设置。用于多模态证据提取、候选生成与综合推理。",
+        EN: "The endpoint selects the OpenAI-compatible service, while the API key is its access credential; each can be configured independently. They are used for multimodal evidence extraction, candidate generation, and joint reasoning.",
     },
     "settings.brave_note": {
         ZH_CN: "用于候选地点的网络介绍与照片检索。未配置时仍可完成 GIS 定位，但不会弹出网络搜索结果。",
@@ -263,8 +263,8 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         EN: "Qwen and Candidate Retrieval",
     },
     "settings.base_url": {
-        ZH_CN: "OpenAI 兼容地址",
-        EN: "OpenAI-compatible URL",
+        ZH_CN: "Qwen 接口地址（Base URL）",
+        EN: "Qwen endpoint (Base URL)",
     },
     "settings.model": {ZH_CN: "模型", EN: "Model"},
     "settings.temperature": {
@@ -441,8 +441,38 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     },
     "about.title": {ZH_CN: "关于 SakuGIS", EN: "About SakuGIS"},
     "about.body": {
-        ZH_CN: "<h3>SakuGIS 0.3.0</h3><p>一款基于 QGIS 的轻量 macOS 桌面 GIS。</p><p>开发团队：<a href=\"https://urbancomp.net\">UrbanComp</a>。</p><p>许可证：GNU GPL v2 或更高版本。</p>",
-        EN: "<h3>SakuGIS 0.3.0</h3><p>A lightweight macOS desktop GIS powered by QGIS.</p><p>Developed by the <a href=\"https://urbancomp.net\">UrbanComp team</a>.</p><p>License: GNU GPL v2 or later.</p>",
+        ZH_CN: "<h3>SakuGIS 0.3.1</h3><p>一款基于 QGIS 的轻量 macOS 桌面 GIS。</p><p>开发团队：<a href=\"https://urbancomp.net\">UrbanComp</a>。</p><p>许可证：GNU GPL v2 或更高版本。</p>",
+        EN: "<h3>SakuGIS 0.3.1</h3><p>A lightweight macOS desktop GIS powered by QGIS.</p><p>Developed by the <a href=\"https://urbancomp.net\">UrbanComp team</a>.</p><p>License: GNU GPL v2 or later.</p>",
+    },
+    "update.check_button": {ZH_CN: "检查更新…", EN: "Check for Updates…"},
+    "update.close_button": {ZH_CN: "关闭", EN: "Close"},
+    "update.checking": {
+        ZH_CN: "正在检查 GitHub 更新…",
+        EN: "Checking GitHub for updates…",
+    },
+    "update.current_title": {ZH_CN: "已是最新版本", EN: "Up to Date"},
+    "update.current_detail": {
+        ZH_CN: "当前 SakuGIS {version} 已是 GitHub 上的最新版本。",
+        EN: "SakuGIS {version} is the latest version available on GitHub.",
+    },
+    "update.available_title": {
+        ZH_CN: "发现新版本",
+        EN: "Update Available",
+    },
+    "update.available_detail": {
+        ZH_CN: "当前版本：{current}\n最新版本：{latest}\n\n可以前往 GitHub 下载 Apple Silicon DMG。",
+        EN: "Current version: {current}\nLatest version: {latest}\n\nThe Apple Silicon DMG is available from GitHub.",
+    },
+    "update.download_button": {ZH_CN: "下载更新", EN: "Download Update"},
+    "update.notes_button": {ZH_CN: "查看版本说明", EN: "View Release Notes"},
+    "update.later_button": {ZH_CN: "稍后", EN: "Later"},
+    "update.error_title": {
+        ZH_CN: "无法检查更新",
+        EN: "Could Not Check for Updates",
+    },
+    "update.error_detail": {
+        ZH_CN: "无法读取 GitHub Release 信息，请检查网络后重试。",
+        EN: "GitHub Release information could not be read. Check the network and try again.",
     },
     "layer.opacity": {ZH_CN: "透明度 {value}%", EN: "Opacity {value}%"},
     "layer.eyebrow": {ZH_CN: "MAP CONTENTS", EN: "MAP CONTENTS"},

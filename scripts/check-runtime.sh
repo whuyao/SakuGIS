@@ -24,6 +24,7 @@ export QT_QPA_PLATFORM_PLUGIN_PATH="$CONTENTS_DIR/PlugIns/platforms"
 export QGIS_PLUGINPATH="$CONTENTS_DIR/PlugIns/qgis"
 export QT_QPA_PLATFORM="offscreen"
 export QGIS_CUSTOM_CONFIG_PATH="/private/tmp/sakugis-qgis-profile"
+export SAKUGIS_STARTUP_CITY="wuhan"
 mkdir -p "$QGIS_CUSTOM_CONFIG_PATH"
 
 if [[ -d "$CONTENTS_DIR/Resources/qgis" ]]; then
@@ -141,15 +142,15 @@ center_transform = QgsCoordinateTransform(
 )
 initial_center = center_transform.transform(window.canvas.center())
 if not (
-    113.65 <= initial_center.x() <= 115.00
-    and 30.05 <= initial_center.y() <= 31.15
+    113.63 <= initial_center.x() <= 114.98
+    and 30.04 <= initial_center.y() <= 31.14
 ):
     raise SystemExit(
         f"Initial map center is not in Wuhan: "
         f"{initial_center.x()}, {initial_center.y()}"
     )
 print(
-    f"Initial map center: "
+    f"Startup city and initial map center: {window.startup_city.name_en}, "
     f"{initial_center.x():.4f}, {initial_center.y():.4f}"
 )
 

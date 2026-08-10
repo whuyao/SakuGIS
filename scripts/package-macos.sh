@@ -4,7 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-VERSION="0.3.0"
+VERSION="0.3.1"
 QGIS_APP=""
 OUTPUT_DIR="$PROJECT_DIR/dist"
 SIGN_IDENTITY="-"
@@ -75,7 +75,7 @@ fi
 
 QGIS_ARCHITECTURES="$(lipo -archs "$QGIS_EXECUTABLE")"
 if [[ " $QGIS_ARCHITECTURES " != *" arm64 "* ]]; then
-  echo "SakuGIS 0.2 仅支持 Apple Silicon；QGIS 运行时缺少 arm64 架构。" >&2
+  echo "SakuGIS 0.3.1 仅支持 Apple Silicon；QGIS 运行时缺少 arm64 架构。" >&2
   echo "检测到：$QGIS_ARCHITECTURES" >&2
   exit 1
 fi
