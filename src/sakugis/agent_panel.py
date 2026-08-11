@@ -64,11 +64,13 @@ class AnalysisWorker(QObject):
 
 
 class AgentPanel(QWidget):
+    analysisStarted = pyqtSignal()
     analysisCompleted = pyqtSignal(object)
     candidateSelected = pyqtSignal(object)
     candidateActivated = pyqtSignal(object)
     reportExportRequested = pyqtSignal()
     settingsRequested = pyqtSignal(str)
+    sessionChanged = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -139,6 +141,7 @@ class AgentPanel(QWidget):
         self.query_edit = QTextEdit(self)
         self.query_edit.setPlaceholderText(tr("agent.query_hint"))
         self.query_edit.setMaximumHeight(110)
+        self.query_edit.textChanged.connect(self.sessionChanged.emit)
         query_layout = QVBoxLayout(self.query_group)
         query_layout.addWidget(self.query_edit)
 
@@ -338,6 +341,47 @@ class AgentPanel(QWidget):
     def focus_query(self) -> None:
         self.query_edit.setFocus(Qt.OtherFocusReason)
 
+    def query_text(self) -> str:
+        return self.query_edit.toPlainText()
+
+    def image_paths(self) -> list[str]:
+        return list(self._image_paths)
+
+    def last_result(self) -> Optional[GeoAnalysisResult]:
+        return self._last_result
+
+    def restore_session(
+        self,
+        query: str,
+        image_paths: list[str],
+        result: Optional[GeoAnalysisResult],
+    ) -> None:
+        """Restore inputs and completed output without rerunning the Agents."""
+
+        self.query_edit.blockSignals(True)
+        self.query_edit.setPlainText(query)
+        self.query_edit.blockSignals(False)
+        self._image_paths = list(image_paths)
+        self._refresh_photo_list()
+        self._last_result = result
+        if result is None:
+            self.evidence_tree.clear()
+            self.candidate_tree.clear()
+            self.gis_tree.clear()
+            self.summary_browser.clear()
+            self.progress_bar.setValue(0)
+            self.progress_label.setText(tr("agent.waiting"))
+            self._set_step_state(0)
+            self.export_button.setEnabled(False)
+            self.photo_group.show()
+            self.query_group.show()
+            self.new_search_button.hide()
+            return
+        self.progress_bar.setValue(100)
+        self.progress_label.setText(tr("agent.complete"))
+        self._set_step_state(100)
+        self._show_result(result)
+
     def _prepare_new_search(self) -> None:
         self.photo_group.show()
         self.query_group.show()
@@ -391,6 +435,8 @@ class AgentPanel(QWidget):
             else self._image_paths[-1]
         )
         self._refresh_photo_list(selected)
+        if len(self._image_paths) != previous_count:
+            self.sessionChanged.emit()
 
     def _refresh_photo_list(self, selected_path: str = "") -> None:
         if not selected_path and self.photo_list.currentItem() is not None:
@@ -455,14 +501,20 @@ class AgentPanel(QWidget):
             selected.add(
                 str(self.photo_list.currentItem().data(Qt.UserRole) or "")
             )
+        previous_count = len(self._image_paths)
         self._image_paths = [
             path for path in self._image_paths if path not in selected
         ]
         self._refresh_photo_list()
+        if len(self._image_paths) != previous_count:
+            self.sessionChanged.emit()
 
     def _clear_photos(self) -> None:
+        had_photos = bool(self._image_paths)
         self._image_paths = []
         self._refresh_photo_list()
+        if had_photos:
+            self.sessionChanged.emit()
 
     def _refresh_key_status(self) -> None:
         if has_api_key():
@@ -509,6 +561,7 @@ class AgentPanel(QWidget):
             self.settingsRequested.emit("qwen")
             return
 
+        self.analysisStarted.emit()
         self.evidence_tree.clear()
         self.candidate_tree.clear()
         self.gis_tree.clear()

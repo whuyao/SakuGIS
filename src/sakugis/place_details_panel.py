@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import html
 import os
+from pathlib import Path, PurePosixPath
+import re
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, Optional
@@ -31,10 +33,12 @@ from sakugis.credentials import configured_brave_timeout, has_brave_api_key
 from sakugis.i18n import get_language, tr
 from sakugis.place_search import (
     BraveSearchClient,
+    MAX_THUMBNAIL_BYTES,
     MemoryPlaceCache,
     PlaceDetails,
     PlaceImageResult,
     PlaceSearchError,
+    PlaceWebResult,
     has_named_gis_identity,
     has_online_place_material,
 )
@@ -52,6 +56,7 @@ class PlaceDetailsPanel(QWidget):
 
     contentAvailable = pyqtSignal(object)
     contentUnavailable = pyqtSignal(object, str)
+    archiveChanged = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -71,6 +76,8 @@ class PlaceDetailsPanel(QWidget):
         self._jobs: Dict[int, tuple[object, threading.Event]] = {}
         self._shutdown = False
         self._photo_buttons: Dict[int, QToolButton] = {}
+        self._saved_details: Dict[str, PlaceDetails] = {}
+        self._saved_thumbnails: Dict[str, Dict[int, bytes]] = {}
         self._build_ui()
         self._show_empty_state()
 
@@ -150,6 +157,133 @@ class PlaceDetailsPanel(QWidget):
     def current_candidate(self) -> Optional[Candidate]:
         return self._candidate
 
+    def clear_saved_material(self) -> None:
+        self._saved_details.clear()
+        self._saved_thumbnails.clear()
+
+    def clear_case(self) -> None:
+        self._request_id += 1
+        self._cancel_jobs()
+        self._candidate = None
+        self._details = None
+        self.clear_saved_material()
+        self._show_empty_state()
+
+    def archive_snapshot(self) -> tuple[dict, Dict[str, bytes]]:
+        """Return serializable web material and downloaded thumbnail bytes."""
+
+        records = {}
+        blobs: Dict[str, bytes] = {}
+        for ordinal, (candidate_id, details) in enumerate(
+            self._saved_details.items(), 1
+        ):
+            safe_id = re.sub(r"[^A-Za-z0-9_-]+", "-", candidate_id).strip("-")
+            safe_id = f"{ordinal:03d}-{safe_id[:44] or 'candidate'}"
+            thumbnails = []
+            for index, content in sorted(
+                self._saved_thumbnails.get(candidate_id, {}).items()
+            ):
+                archive_path = f"places/{safe_id}/thumbnail-{index + 1}.img"
+                blobs[archive_path] = content
+                thumbnails.append({"index": index, "archive_path": archive_path})
+            records[candidate_id] = {
+                "candidate_id": details.candidate_id,
+                "query": details.query,
+                "web_results": [
+                    {
+                        "title": item.title,
+                        "url": item.url,
+                        "description": item.description,
+                        "source": item.source,
+                    }
+                    for item in details.web_results
+                ],
+                "images": [
+                    {
+                        "title": item.title,
+                        "page_url": item.page_url,
+                        "thumbnail_url": item.thumbnail_url,
+                        "original_url": item.original_url,
+                        "source": item.source,
+                        "width": item.width,
+                        "height": item.height,
+                    }
+                    for item in details.images
+                ],
+                "warnings": list(details.warnings),
+                "thumbnails": thumbnails,
+            }
+        return {"candidates": records}, blobs
+
+    def restore_archive(self, snapshot: dict, extraction_root: Path) -> None:
+        """Restore packaged Brave results without making a network request."""
+
+        self.clear_saved_material()
+        candidates = snapshot.get("candidates") or {}
+        if not isinstance(candidates, dict):
+            return
+        for candidate_id, record in candidates.items():
+            if not isinstance(record, dict):
+                continue
+            details = PlaceDetails(
+                candidate_id=str(record.get("candidate_id") or candidate_id),
+                query=str(record.get("query") or ""),
+                web_results=[
+                    PlaceWebResult(
+                        title=str(item.get("title") or ""),
+                        url=_safe_https_url(item.get("url")),
+                        description=str(item.get("description") or ""),
+                        source=str(item.get("source") or ""),
+                    )
+                    for item in record.get("web_results", [])
+                    if isinstance(item, dict) and _safe_https_url(item.get("url"))
+                ],
+                images=[
+                    PlaceImageResult(
+                        title=str(item.get("title") or ""),
+                        page_url=_safe_https_url(item.get("page_url")),
+                        thumbnail_url=_safe_https_url(item.get("thumbnail_url")),
+                        original_url=_safe_https_url(item.get("original_url")),
+                        source=str(item.get("source") or ""),
+                        width=int(item.get("width") or 0),
+                        height=int(item.get("height") or 0),
+                    )
+                    for item in record.get("images", [])
+                    if isinstance(item, dict)
+                    and _safe_https_url(item.get("page_url"))
+                ],
+                warnings=[
+                    str(item)
+                    for item in record.get("warnings", [])
+                    if str(item).strip()
+                ],
+            )
+            key = str(candidate_id)
+            self._saved_details[key] = details
+            thumbnail_bytes = {}
+            for item in record.get("thumbnails", []):
+                if not isinstance(item, dict):
+                    continue
+                archive_path = str(item.get("archive_path") or "")
+                archive_parts = PurePosixPath(archive_path).parts
+                if (
+                    not archive_path
+                    or "\\" in archive_path
+                    or PurePosixPath(archive_path).is_absolute()
+                    or any(part in {"", ".", ".."} for part in archive_parts)
+                ):
+                    continue
+                try:
+                    content = extraction_root.joinpath(
+                        *archive_parts
+                    ).read_bytes()
+                    if len(content) > MAX_THUMBNAIL_BYTES:
+                        continue
+                    thumbnail_bytes[int(item.get("index", 0))] = content
+                except (OSError, TypeError, ValueError):
+                    continue
+            self._saved_thumbnails[key] = thumbnail_bytes
+
     def settings_changed(self) -> None:
         """Apply credential and timeout changes without restarting the app."""
 
@@ -198,6 +332,26 @@ class PlaceDetailsPanel(QWidget):
             self.status_label.setText(tr("place.hidden.gis_identity"))
             self.refresh_button.setEnabled(False)
             self.contentUnavailable.emit(candidate, "gis_identity")
+            return
+        archived = self._saved_details.get(candidate.candidate_id)
+        if archived is not None and not force_refresh:
+            self._details = archived
+            self._render_overview()
+            self._render_photos(archived)
+            self._render_sources()
+            if has_online_place_material(archived):
+                self.status_label.setText(
+                    tr(
+                        "place.ready_archived",
+                        web=len(archived.web_results),
+                        photos=len(archived.images),
+                    )
+                )
+                self.refresh_button.setEnabled(True)
+                self.contentAvailable.emit(candidate)
+            else:
+                self.status_label.setText(tr("place.hidden.no_material"))
+                self.contentUnavailable.emit(candidate, "no_material")
             return
         self.refresh(force_refresh=force_refresh)
 
@@ -288,6 +442,9 @@ class PlaceDetailsPanel(QWidget):
         if request_id != self._request_id:
             return
         self._details = details
+        self._saved_details[details.candidate_id] = details
+        self._saved_thumbnails[details.candidate_id] = {}
+        self.archiveChanged.emit()
         if not has_online_place_material(details):
             self.status_label.setText(tr("place.hidden.no_material"))
             self._render_overview()
@@ -328,6 +485,11 @@ class PlaceDetailsPanel(QWidget):
     ) -> None:
         if request_id != self._request_id:
             return
+        if self._candidate is not None:
+            self._saved_thumbnails.setdefault(
+                self._candidate.candidate_id, {}
+            )[index] = content
+            self.archiveChanged.emit()
         button = self._photo_buttons.get(index)
         if button is None:
             return
@@ -426,6 +588,13 @@ class PlaceDetailsPanel(QWidget):
             )
             self.photo_grid.addWidget(button, index // 2, index % 2)
             self._photo_buttons[index] = button
+            candidate_id = self._candidate.candidate_id if self._candidate else ""
+            content = self._saved_thumbnails.get(candidate_id, {}).get(index)
+            if content:
+                pixmap = QPixmap()
+                if pixmap.loadFromData(content):
+                    button.setIcon(QIcon(pixmap))
+                    button.setIconSize(QSize(114, 72))
         self.photo_grid.setRowStretch((len(details.images) + 1) // 2, 1)
 
     def _clear_photos(self) -> None:
@@ -525,3 +694,9 @@ def _open_url(url: str) -> None:
     parsed = QUrl(url)
     if parsed.scheme() == "https" and parsed.host():
         QDesktopServices.openUrl(parsed)
+
+
+def _safe_https_url(value: object) -> str:
+    url = str(value or "")
+    parsed = QUrl(url)
+    return url if parsed.scheme() == "https" and parsed.host() else ""

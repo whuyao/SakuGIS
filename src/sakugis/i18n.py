@@ -89,6 +89,10 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         ZH_CN: "已找到 {web} 条介绍、{photos} 张照片",
         EN: "Found {web} descriptions and {photos} photos",
     },
+    "place.ready_archived": {
+        ZH_CN: "正在复盘工程快照：{web} 条介绍、{photos} 张照片",
+        EN: "Replaying project snapshot: {web} descriptions and {photos} photos",
+    },
     "place.partial": {
         ZH_CN: "已显示部分结果 · {detail}",
         EN: "Showing partial results · {detail}",
@@ -346,6 +350,10 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "status.scale": {ZH_CN: "比例尺 1:{scale}", EN: "Scale 1:{scale}"},
     "status.scale_empty": {ZH_CN: "比例尺 —", EN: "Scale —"},
     "status.project_saved": {ZH_CN: "工程已保存", EN: "Project saved"},
+    "status.project_loaded": {
+        ZH_CN: "SakuGIS 工程已加载，可在地图和 Agent 面板中复盘",
+        EN: "SakuGIS project loaded and ready for map and Agent replay",
+    },
     "status.report_saved": {
         ZH_CN: "Markdown 报告已保存：{path}",
         EN: "Markdown report saved: {path}",
@@ -394,8 +402,12 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         EN: "Open SakuGIS / QGIS Project",
     },
     "dialog.project_filter": {
-        ZH_CN: "QGIS 工程 (*.qgz *.qgs)",
-        EN: "QGIS Projects (*.qgz *.qgs)",
+        ZH_CN: "SakuGIS 工程 (*.sgd);;QGIS 工程 (*.qgz *.qgs)",
+        EN: "SakuGIS Projects (*.sgd);;QGIS Projects (*.qgz *.qgs)",
+    },
+    "dialog.save_project_filter": {
+        ZH_CN: "SakuGIS 复盘工程 (*.sgd);;QGIS 工程 (*.qgz *.qgs)",
+        EN: "SakuGIS Replay Projects (*.sgd);;QGIS Projects (*.qgz *.qgs)",
     },
     "dialog.project_open_failed": {ZH_CN: "工程打开失败", EN: "Project Open Failed"},
     "dialog.project_open_failed_detail": {
@@ -406,6 +418,14 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "dialog.save_failed_detail": {
         ZH_CN: "无法保存工程：\n{path}",
         EN: "Cannot save project:\n{path}",
+    },
+    "dialog.sgd_save_failed_detail": {
+        ZH_CN: "无法保存 .sgd 工程：\n{error}",
+        EN: "Could not save the .sgd project:\n{error}",
+    },
+    "dialog.sgd_open_failed_detail": {
+        ZH_CN: "无法验证或加载 .sgd 工程：\n{error}",
+        EN: "Could not validate or load the .sgd project:\n{error}",
     },
     "dialog.save_project": {ZH_CN: "保存 SakuGIS 工程", EN: "Save SakuGIS Project"},
     "dialog.export_report": {
@@ -428,7 +448,15 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         ZH_CN: "请先完成一次定位分析，再导出报告。",
         EN: "Complete a geolocation analysis before exporting a report.",
     },
-    "dialog.untitled": {ZH_CN: "未命名.qgz", EN: "Untitled.qgz"},
+    "dialog.untitled": {ZH_CN: "未命名.sgd", EN: "Untitled.sgd"},
+    "sgd.warning_title": {
+        ZH_CN: "工程已加载，但有图层未打包",
+        EN: "Project Loaded with Unpackaged Layers",
+    },
+    "sgd.warning_layer_skipped": {
+        ZH_CN: "图层“{name}”使用远程、数据库或暂不支持的数据源，未写入工程包。",
+        EN: "Layer “{name}” uses a remote, database, or unsupported source and was not packaged.",
+    },
     "dialog.unsaved": {ZH_CN: "工程尚未保存", EN: "Unsaved Project"},
     "dialog.unsaved_question": {
         ZH_CN: "是否先保存当前工程？",
@@ -441,8 +469,8 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     },
     "about.title": {ZH_CN: "关于 SakuGIS", EN: "About SakuGIS"},
     "about.body": {
-        ZH_CN: "<h3>SakuGIS 0.3.1</h3><p>一款基于 QGIS 的轻量 macOS 桌面 GIS。</p><p>开发团队：<a href=\"https://urbancomp.net\">UrbanComp</a>。</p><p>许可证：GNU GPL v2 或更高版本。</p>",
-        EN: "<h3>SakuGIS 0.3.1</h3><p>A lightweight macOS desktop GIS powered by QGIS.</p><p>Developed by the <a href=\"https://urbancomp.net\">UrbanComp team</a>.</p><p>License: GNU GPL v2 or later.</p>",
+        ZH_CN: "<h3>SakuGIS 0.4.0</h3><p>一款基于 QGIS 的轻量 macOS 桌面 GIS。</p><p>开发团队：<a href=\"https://urbancomp.net\">UrbanComp</a>。</p><p>许可证：GNU GPL v2 或更高版本。</p>",
+        EN: "<h3>SakuGIS 0.4.0</h3><p>A lightweight macOS desktop GIS powered by QGIS.</p><p>Developed by the <a href=\"https://urbancomp.net\">UrbanComp team</a>.</p><p>License: GNU GPL v2 or later.</p>",
     },
     "update.check_button": {ZH_CN: "检查更新…", EN: "Check for Updates…"},
     "update.close_button": {ZH_CN: "关闭", EN: "Close"},

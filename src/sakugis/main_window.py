@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
+from tempfile import TemporaryDirectory
 from typing import Optional
 
 from qgis.PyQt.QtCore import (
@@ -62,6 +63,12 @@ from sakugis.i18n import EN, ZH_CN, get_language, set_language, tr
 from sakugis.layer_panel import LayerPanel
 from sakugis.map_defaults import choose_startup_city
 from sakugis.place_details_panel import PlaceDetailsPanel
+from sakugis.project_archive import (
+    ArchiveAsset,
+    SgdError,
+    load_sgd,
+    save_sgd,
+)
 from sakugis.reporting import write_markdown_report
 from sakugis.settings_dialog import SettingsDialog
 from sakugis.ui_components import MapHud, WelcomeOverlay
@@ -151,6 +158,10 @@ class MainWindow(QMainWindow):
         self._place_details_available = False
         self._update_thread = None
         self._update_worker = None
+        self._sgd_path = ""
+        self._sgd_dirty = False
+        self._restoring_sgd = False
+        self._sgd_extraction = None
         self.startup_city = choose_startup_city(
             os.environ.get("SAKUGIS_STARTUP_CITY", "")
         )
@@ -196,6 +207,7 @@ class MainWindow(QMainWindow):
         )
         self.agent_panel.reportExportRequested.connect(self.export_report)
         self.agent_panel.settingsRequested.connect(self.open_settings)
+        self.agent_panel.sessionChanged.connect(self._mark_sgd_dirty)
         self.agent_dock = QDockWidget(tr("dock.agents"), self)
         self.agent_dock.setObjectName("geoAgentsDock")
         self.agent_dock.setAllowedAreas(
@@ -207,6 +219,10 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.RightDockWidgetArea, self.agent_dock)
 
         self.place_details_panel = PlaceDetailsPanel(self)
+        self.place_details_panel.archiveChanged.connect(self._mark_sgd_dirty)
+        self.agent_panel.analysisStarted.connect(
+            self.place_details_panel.clear_case
+        )
         self.place_details_panel.contentAvailable.connect(
             self._on_place_details_available
         )
@@ -644,12 +660,17 @@ class MainWindow(QMainWindow):
     def _connect_canvas_signals(self) -> None:
         self.canvas.xyCoordinates.connect(self._update_coordinates)
         self.canvas.scaleChanged.connect(self._update_scale)
+        self.canvas.extentsChanged.connect(self._mark_saved_extent_dirty)
         self.canvas.renderStarting.connect(
             lambda: self.render_status.setText(tr("status.rendering"))
         )
         self.canvas.renderComplete.connect(
             lambda _: self.render_status.setText(tr("status.ready"))
         )
+
+    def _mark_saved_extent_dirty(self) -> None:
+        if self._sgd_path:
+            self._mark_sgd_dirty()
 
     def _set_active_map_action(self, active) -> None:
         for action in self.map_tool_actions:
@@ -774,12 +795,37 @@ class MainWindow(QMainWindow):
 
     def _add_default_basemap_if_empty(self) -> None:
         if not self.project.mapLayers():
+            if self._sgd_path:
+                saved_extent = QgsRectangle(self.canvas.extent())
+                previous_restoring = self._restoring_sgd
+                self._restoring_sgd = True
+                self.add_osm_basemap()
+                QTimer.singleShot(
+                    150,
+                    lambda: self._finish_empty_sgd_basemap(
+                        saved_extent, previous_restoring
+                    ),
+                )
+                return
             self.add_osm_basemap()
             # The layer-tree bridge may apply the global XYZ extent on the
             # next event-loop turn, so restore this launch's city afterwards.
             QTimer.singleShot(150, self._set_initial_extent)
             if not self.project.fileName():
                 self.project.setDirty(False)
+
+    def _finish_empty_sgd_basemap(
+        self, saved_extent: QgsRectangle, previous_restoring: bool
+    ) -> None:
+        if self._shutting_down:
+            return
+        try:
+            self.canvas.setExtent(saved_extent)
+            self.canvas.refresh()
+            self.project.setDirty(False)
+            self._sgd_dirty = False
+        finally:
+            self._restoring_sgd = previous_restoring
 
     def _project_layers_changed(self, *_args) -> None:
         if not self._shutting_down:
@@ -836,6 +882,9 @@ class MainWindow(QMainWindow):
         if confirm_discard and not self._confirm_discard_changes():
             return False
 
+        if Path(path).suffix.lower() == ".sgd":
+            return self._load_sgd_path(path)
+
         self.project.clear()
         if not self.project.read(path):
             QMessageBox.critical(
@@ -844,6 +893,14 @@ class MainWindow(QMainWindow):
                 tr("dialog.project_open_failed_detail", path=path),
             )
             return False
+        self._release_sgd_extraction()
+        self._sgd_path = ""
+        self._sgd_dirty = False
+        self._last_analysis_result = None
+        self._candidates_by_id = {}
+        self.agent_panel.restore_session("", [], None)
+        self.place_details_panel.clear_case()
+        self.export_report_action.setEnabled(False)
         self.setWindowTitle(f"SakuGIS — {Path(path).name}")
         self._hide_welcome()
         self._refresh_attribution()
@@ -851,8 +908,10 @@ class MainWindow(QMainWindow):
         return True
 
     def save_project(self, checked: bool = False, save_as: bool = False) -> bool:
-        current = self.project.fileName()
+        current = self._sgd_path or self.project.fileName()
         if current and not save_as:
+            if Path(current).suffix.lower() == ".sgd":
+                return self._save_sgd_path(current)
             if self.project.write():
                 self.statusBar().showMessage(tr("status.project_saved"), 3000)
                 return True
@@ -863,17 +922,19 @@ class MainWindow(QMainWindow):
             )
             return False
 
-        path, _ = QFileDialog.getSaveFileName(
+        path, selected_filter = QFileDialog.getSaveFileName(
             self,
             tr("dialog.save_project"),
             current or str(Path.home() / tr("dialog.untitled")),
-            tr("dialog.project_filter"),
+            tr("dialog.save_project_filter"),
         )
         if not path:
             return False
 
         if not Path(path).suffix:
-            path += ".qgz"
+            path += ".qgz" if "QGIS" in selected_filter else ".sgd"
+        if Path(path).suffix.lower() == ".sgd":
+            return self._save_sgd_path(path)
         if not self.project.write(path):
             QMessageBox.critical(
                 self,
@@ -881,9 +942,341 @@ class MainWindow(QMainWindow):
                 tr("dialog.save_failed_detail", path=path),
             )
             return False
+        self._sgd_path = ""
+        self._sgd_dirty = False
         self.setWindowTitle(f"SakuGIS — {Path(path).name}")
         self.statusBar().showMessage(tr("status.project_saved"), 3000)
         return True
+
+    def _mark_sgd_dirty(self, *_args) -> None:
+        if not self._restoring_sgd and not self._shutting_down:
+            self._sgd_dirty = True
+
+    def _save_sgd_path(self, path: str) -> bool:
+        try:
+            with TemporaryDirectory(prefix="sakugis-save-") as staging:
+                staging_root = Path(staging)
+                map_state, assets = self._capture_sgd_map_state(staging_root)
+                place_details, place_blobs = (
+                    self.place_details_panel.archive_snapshot()
+                )
+                for archive_path, content in place_blobs.items():
+                    staged_path = staging_root.joinpath(*Path(archive_path).parts)
+                    staged_path.parent.mkdir(parents=True, exist_ok=True)
+                    staged_path.write_bytes(content)
+                    assets.append(ArchiveAsset(str(staged_path), archive_path))
+                destination = save_sgd(
+                    path,
+                    query=self.agent_panel.query_text(),
+                    image_paths=self.agent_panel.image_paths(),
+                    result=self._last_analysis_result,
+                    map_state=map_state,
+                    place_details=place_details,
+                    assets=assets,
+                    application_version=__version__,
+                )
+        except (OSError, SgdError, ValueError) as exc:
+            QMessageBox.critical(
+                self,
+                tr("dialog.save_failed"),
+                tr("dialog.sgd_save_failed_detail", error=str(exc)),
+            )
+            return False
+        self._sgd_path = str(destination)
+        self._sgd_dirty = False
+        self.project.setDirty(False)
+        self.setWindowTitle(f"SakuGIS — {destination.name}")
+        self.statusBar().showMessage(tr("status.project_saved"), 3000)
+        return True
+
+    @staticmethod
+    def _safe_layer_id(value: str, index: int) -> str:
+        cleaned = re.sub(r"[^A-Za-z0-9_-]+", "-", value).strip("-")
+        return cleaned[:48] or f"layer-{index}"
+
+    @staticmethod
+    def _portable_source_suffix(source: str) -> str:
+        parts = source.split("|")[1:]
+        allowed = []
+        for part in parts:
+            key = part.partition("=")[0].strip().casefold()
+            if key in {"layername", "geometrytype"}:
+                allowed.append(part)
+        return "".join(f"|{part}" for part in allowed)
+
+    def _capture_sgd_map_state(
+        self, staging_root: Path
+    ) -> tuple[dict, list[ArchiveAsset]]:
+        root = self.project.layerTreeRoot()
+        layer_records = []
+        assets = []
+        warnings = []
+        packaged_sources = {}
+        supported = {
+            ".geojson",
+            ".json",
+            ".gpkg",
+            ".shp",
+            ".kml",
+            ".gpx",
+            ".tif",
+            ".tiff",
+            ".img",
+        }
+        for index, layer in enumerate(root.layerOrder(), 1):
+            if layer.customProperty("sakugis/agent-result"):
+                continue
+            node = root.findLayer(layer.id())
+            record = {
+                "name": layer.name(),
+                "visible": bool(node and node.isVisible()),
+            }
+            basemap_key = str(layer.customProperty("sakugis/basemap-key", ""))
+            if basemap_key:
+                record.update({"kind": "basemap", "basemap_key": basemap_key})
+                layer_records.append(record)
+                continue
+
+            source = str(layer.source() or "")
+            primary_source = Path(source.split("|", 1)[0]).expanduser()
+            suffix = primary_source.suffix.lower()
+            if not primary_source.is_file() or suffix not in supported:
+                warnings.append(tr("sgd.warning_layer_skipped", name=layer.name()))
+                continue
+            layer_id = self._safe_layer_id(layer.id(), index)
+            source_key = str(primary_source.resolve())
+            archive_primary = packaged_sources.get(source_key)
+            if archive_primary is None:
+                archive_dir = f"layers/{index:03d}-{layer_id}"
+                archive_primary = f"{archive_dir}/{primary_source.name}"
+                packaged_sources[source_key] = archive_primary
+                companion_files = [primary_source]
+                if suffix == ".shp":
+                    companion_files = sorted(
+                        primary_source.parent.glob(f"{primary_source.stem}.*")
+                    )
+                else:
+                    for extra in (
+                        Path(f"{primary_source}.aux.xml"),
+                        Path(f"{primary_source}.ovr"),
+                    ):
+                        if extra.is_file():
+                            companion_files.append(extra)
+                for companion in companion_files:
+                    assets.append(
+                        ArchiveAsset(
+                            str(companion), f"{archive_dir}/{companion.name}"
+                        )
+                    )
+            kind = "vector" if isinstance(layer, QgsVectorLayer) else "raster"
+            record.update(
+                {
+                    "kind": kind,
+                    "provider": str(layer.providerType()),
+                    "archive_primary": archive_primary,
+                    "source_suffix": self._portable_source_suffix(source),
+                }
+            )
+            try:
+                opacity = (
+                    layer.opacity()
+                    if isinstance(layer, QgsVectorLayer)
+                    else layer.renderer().opacity()
+                )
+                record["opacity"] = float(opacity)
+            except (AttributeError, TypeError):
+                pass
+            style_path = staging_root / f"{index:03d}-{layer_id}.qml"
+            try:
+                layer.saveNamedStyle(str(style_path))
+                if style_path.is_file():
+                    style_archive = f"styles/{index:03d}-{layer_id}.qml"
+                    assets.append(ArchiveAsset(str(style_path), style_archive))
+                    record["style_path"] = style_archive
+            except (AttributeError, RuntimeError):
+                pass
+            layer_records.append(record)
+
+        try:
+            destination_crs = self.canvas.mapSettings().destinationCrs()
+            transform = QgsCoordinateTransform(
+                destination_crs,
+                QgsCoordinateReferenceSystem("EPSG:4326"),
+                self.project,
+            )
+            geographic_extent = transform.transformBoundingBox(self.canvas.extent())
+            extent = [
+                geographic_extent.xMinimum(),
+                geographic_extent.yMinimum(),
+                geographic_extent.xMaximum(),
+                geographic_extent.yMaximum(),
+            ]
+            crs = destination_crs.authid()
+        except Exception:
+            extent = []
+            crs = "EPSG:3857"
+        return (
+            {
+                "canvas": {"crs": crs, "extent_wgs84": extent},
+                "layers": layer_records,
+                "warnings": warnings,
+            },
+            assets,
+        )
+
+    def _load_sgd_path(self, path: str) -> bool:
+        extraction = TemporaryDirectory(prefix="sakugis-open-")
+        try:
+            loaded = load_sgd(path, extraction.name)
+        except (OSError, SgdError, ValueError) as exc:
+            extraction.cleanup()
+            QMessageBox.critical(
+                self,
+                tr("dialog.project_open_failed"),
+                tr("dialog.sgd_open_failed_detail", error=str(exc)),
+            )
+            return False
+
+        self._restoring_sgd = True
+        try:
+            self.project.clear()
+            self._release_sgd_extraction()
+            self._sgd_extraction = extraction
+            self._last_analysis_result = loaded.result
+            self._candidates_by_id = {}
+            self.place_details_panel.clear_case()
+            self._restore_sgd_map_state(loaded.map_state, loaded.extraction_root)
+            self.place_details_panel.restore_archive(
+                loaded.place_details, loaded.extraction_root
+            )
+            self.agent_panel.restore_session(
+                loaded.query, loaded.image_paths, loaded.result
+            )
+            if loaded.result is not None:
+                self.show_agent_result(loaded.result)
+            else:
+                self.export_report_action.setEnabled(False)
+            self._restore_sgd_canvas(loaded.map_state)
+            self._sgd_path = str(Path(path).resolve())
+            self._sgd_dirty = False
+            self.project.setDirty(False)
+        except Exception as exc:
+            self.project.clear()
+            self._release_sgd_extraction()
+            QMessageBox.critical(
+                self,
+                tr("dialog.project_open_failed"),
+                tr("dialog.sgd_open_failed_detail", error=str(exc)),
+            )
+            return False
+        finally:
+            self._restoring_sgd = False
+        self.setWindowTitle(f"SakuGIS — {Path(path).name}")
+        self._hide_welcome()
+        self._refresh_attribution()
+        self.canvas.refresh()
+        warning_count = len(loaded.warnings)
+        if warning_count:
+            QMessageBox.information(
+                self,
+                tr("sgd.warning_title"),
+                "\n".join(loaded.warnings),
+            )
+        self.statusBar().showMessage(tr("status.project_loaded"), 4000)
+        return True
+
+    def _restore_sgd_map_state(self, map_state: dict, root_path: Path) -> None:
+        root = self.project.layerTreeRoot()
+        for record in map_state.get("layers") or []:
+            if not isinstance(record, dict):
+                continue
+            layer = None
+            kind = str(record.get("kind") or "")
+            if kind == "basemap":
+                key = str(record.get("basemap_key") or "")
+                if key == OSM.key:
+                    self.add_osm_basemap()
+                elif key == GOOGLE_SATELLITE.key:
+                    self.add_google_satellite()
+                layer = next(
+                    (
+                        item
+                        for item in self.project.mapLayers().values()
+                        if item.customProperty("sakugis/basemap-key") == key
+                    ),
+                    None,
+                )
+            else:
+                if kind not in {"vector", "raster"}:
+                    continue
+                archive_primary = str(record.get("archive_primary") or "")
+                if not archive_primary:
+                    continue
+                source_path = self._sgd_member_path(root_path, archive_primary)
+                source = str(source_path) + self._portable_source_suffix(
+                    str(record.get("source_suffix") or "")
+                )
+                name = str(record.get("name") or source_path.stem)
+                if kind == "vector":
+                    layer = QgsVectorLayer(source, name, "ogr")
+                else:
+                    layer = QgsRasterLayer(source, name, "gdal")
+                if not layer.isValid():
+                    continue
+                self.project.addMapLayer(layer, False)
+                root.addLayer(layer)
+                style_path = str(record.get("style_path") or "")
+                if style_path:
+                    layer.loadNamedStyle(
+                        str(self._sgd_member_path(root_path, style_path))
+                    )
+                try:
+                    opacity = float(record.get("opacity", 1.0))
+                    if isinstance(layer, QgsVectorLayer):
+                        layer.setOpacity(opacity)
+                    else:
+                        layer.renderer().setOpacity(opacity)
+                except (AttributeError, TypeError, ValueError):
+                    pass
+            if layer is not None:
+                node = root.findLayer(layer.id())
+                if node is not None:
+                    node.setItemVisibilityChecked(bool(record.get("visible", True)))
+
+    @staticmethod
+    def _sgd_member_path(root_path: Path, archive_path: str) -> Path:
+        member = PurePosixPath(archive_path)
+        if (
+            not archive_path
+            or "\\" in archive_path
+            or member.is_absolute()
+            or any(part in {"", ".", ".."} for part in member.parts)
+        ):
+            raise ValueError("Invalid path in SGD map state.")
+        return root_path.joinpath(*member.parts)
+
+    def _restore_sgd_canvas(self, map_state: dict) -> None:
+        canvas_state = map_state.get("canvas") or {}
+        extent = canvas_state.get("extent_wgs84") or []
+        crs = QgsCoordinateReferenceSystem(str(canvas_state.get("crs") or "EPSG:3857"))
+        if crs.isValid():
+            self.canvas.setDestinationCrs(crs)
+        if len(extent) != 4:
+            return
+        transform = QgsCoordinateTransform(
+            QgsCoordinateReferenceSystem("EPSG:4326"),
+            self.canvas.mapSettings().destinationCrs(),
+            self.project,
+        )
+        self.canvas.setExtent(
+            transform.transformBoundingBox(QgsRectangle(*[float(item) for item in extent]))
+        )
+
+    def _release_sgd_extraction(self) -> None:
+        extraction = self._sgd_extraction
+        self._sgd_extraction = None
+        if extraction is not None:
+            extraction.cleanup()
 
     def export_report(self, checked: bool = False) -> bool:
         result = self._last_analysis_result
@@ -952,6 +1345,7 @@ class MainWindow(QMainWindow):
         self.canvas.refresh()
 
     def show_agent_result(self, result: GeoAnalysisResult) -> None:
+        self._mark_sgd_dirty()
         self._last_analysis_result = result
         self._candidates_by_id = {
             candidate.candidate_id: candidate
@@ -1495,11 +1889,12 @@ class MainWindow(QMainWindow):
         )
 
     def _confirm_discard_changes(self) -> bool:
-        if not self.project.isDirty():
+        if not self._sgd_dirty and not self.project.isDirty():
             return True
         layers = list(self.project.mapLayers().values())
         only_automatic_osm = (
-            not self.project.fileName()
+            not self._sgd_dirty
+            and not self.project.fileName()
             and bool(layers)
             and all(
                 layer.customProperty("sakugis/basemap-key") == OSM.key
@@ -1547,6 +1942,7 @@ class MainWindow(QMainWindow):
             update_thread.wait(9000)
         self._save_place_details_geometry()
         self.place_details_panel.shutdown()
+        self._release_sgd_extraction()
         try:
             self.project.layerTreeRoot().visibilityChanged.disconnect(
                 self._visibility_slot

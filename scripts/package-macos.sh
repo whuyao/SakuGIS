@@ -4,7 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-VERSION="0.3.1"
+VERSION="0.4.0"
 QGIS_APP=""
 OUTPUT_DIR="$PROJECT_DIR/dist"
 SIGN_IDENTITY="-"
@@ -56,7 +56,8 @@ mkdir -p "$OUTPUT_DIR"
 BUILD_DIR="$(mktemp -d /private/tmp/sakugis-package.XXXXXX)"
 APP_PATH="$BUILD_DIR/SakuGIS.app"
 DMG_STAGE="$BUILD_DIR/dmg"
-DMG_PATH="$OUTPUT_DIR/SakuGIS-$VERSION.dmg"
+DMG_PATH="$OUTPUT_DIR/SakuGIS-$VERSION-Apple-Silicon.dmg"
+CHECKSUM_PATH="$OUTPUT_DIR/SakuGIS-$VERSION-Apple-Silicon.sha256.txt"
 
 cleanup() {
   rm -rf "$BUILD_DIR"
@@ -75,7 +76,7 @@ fi
 
 QGIS_ARCHITECTURES="$(lipo -archs "$QGIS_EXECUTABLE")"
 if [[ " $QGIS_ARCHITECTURES " != *" arm64 "* ]]; then
-  echo "SakuGIS 0.3.1 仅支持 Apple Silicon；QGIS 运行时缺少 arm64 架构。" >&2
+  echo "SakuGIS $VERSION 仅支持 Apple Silicon；QGIS 运行时缺少 arm64 架构。" >&2
   echo "检测到：$QGIS_ARCHITECTURES" >&2
   exit 1
 fi
@@ -157,4 +158,10 @@ hdiutil create \
   -format UDZO \
   "$DMG_PATH"
 
+(
+  cd "$OUTPUT_DIR"
+  shasum -a 256 "$(basename "$DMG_PATH")" > "$(basename "$CHECKSUM_PATH")"
+)
+
 echo "完成：$DMG_PATH"
+echo "校验：$CHECKSUM_PATH"

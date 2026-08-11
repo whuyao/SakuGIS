@@ -25,7 +25,7 @@ BRAVE_IMAGE_REQUEST_LIMIT = 24
 BRAVE_IMAGE_PER_PAGE_LIMIT = 2
 MAX_THUMBNAIL_BYTES = 2 * 1024 * 1024
 SESSION_CACHE_TTL_SECONDS = 15 * 60
-USER_AGENT = "SakuGIS/0.3.1 (+https://urbancomp.net)"
+USER_AGENT = "SakuGIS/0.4.0 (+https://urbancomp.net)"
 
 _NON_PLACE_IMAGE_HOST_MARKERS = (
     "amazon.",
@@ -105,7 +105,7 @@ class PlaceDetails:
 
 
 class MemoryPlaceCache:
-    """Short-lived session cache; Brave results are never persisted to disk."""
+    """Short-lived cache; explicit SGD saves may snapshot displayed material."""
 
     def __init__(self, ttl_seconds: int = SESSION_CACHE_TTL_SECONDS):
         self.ttl_seconds = max(1, int(ttl_seconds))
