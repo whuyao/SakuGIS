@@ -2,23 +2,27 @@
 
 中文说明 · [English](README.md)
 
+> **最新版本：[下载 SakuGIS 0.4.0 Apple Silicon 安装包（.dmg）](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.dmg)**<br>
+> macOS 13 或更高版本 · 仅支持 Apple Silicon · [版本说明](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.0) · [SHA-256 校验](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.sha256.txt)
+
 SakuGIS 是一款面向 macOS 的轻量桌面 GIS 应用。当前版本以 QGIS LTR
 作为 GIS 内核，提供在线底图、本地 GIS 数据加载、图层管理、地图漫游和
-QGIS 工程保存能力。由 [UrbanComp 团队](https://urbancomp.net)开发。
+可复盘的 SakuGIS 工程。由 [UrbanComp 团队](https://urbancomp.net)开发。
 
 ## 下载
 
-当前可安装版本为
-**[SakuGIS 0.3.1 — Apple Silicon 测试版](https://github.com/whuyao/SakuGIS/releases/tag/v0.3.1)**。
+当前最新可安装版本为 **SakuGIS 0.4.0 Apple Silicon 版**。
 
-[下载 DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.3.1/SakuGIS-0.3.1-Apple-Silicon.dmg)
+[下载最新版 DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.dmg)
 ·
-[SHA-256 校验文件](https://github.com/whuyao/SakuGIS/releases/download/v0.3.1/SakuGIS-0.3.1-Apple-Silicon.sha256.txt)
+[SHA-256 校验文件](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.sha256.txt)
 ·
-[版本说明与注意事项](https://github.com/whuyao/SakuGIS/releases/tag/v0.3.1)
+[版本说明、注意事项与全部附件](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.0)
 
-0.3.1 将 Qwen 接口地址与 API Key 集中到同一设置区域并明确区分，支持保存后
-立即切换兼容服务；启动地图改为从 24 座全球大城市中随机选择。
+0.4.0 新增可复盘的 `.sgd` 单文件工程，可打包查询、原始输入照片、三 Agent
+与 GIS 结构化结果、支持的本地 GIS 图层和样式、地图状态，以及已经取得的
+Place Explorer 介绍与缩略图。重新打开即可恢复地图和分析，无需重新调用在线
+服务；Qwen/Brave Key 与 PostGIS 连接信息不会进入工程包。
 
 安装包支持 macOS 13 或更高版本，仅支持 Apple Silicon。DMG 约 1.7 GB，
 已包含独立 QGIS 运行时，无需另行安装 QGIS。当前测试包采用 ad-hoc 签名且
@@ -32,7 +36,11 @@ QGIS 工程保存能力。由 [UrbanComp 团队](https://urbancomp.net)开发。
 - 鼠标拖动、滚轮缩放、放大、缩小和全图显示
 - 图层显示、隐藏、拖动排序、重命名和透明度调整
 - 打开 GeoJSON、GeoPackage、Shapefile、KML 和 GeoTIFF 等常见数据
-- 打开和保存 `.qgz` / `.qgs` 工程
+- 默认打开和保存单文件 `.sgd` 复盘工程：打包查询文本、原始输入照片、
+  三 Agent 结构化结果、GIS 核验过程、候选评分、地图视图、本地 GIS 数据
+  及图层样式，并保存已经取得的 Brave 地点介绍、照片缩略图和来源链接；
+  重新打开后直接重建候选点、范围和结果面板，无需再次调用模型或检索服务
+- 兼容打开和另存为 `.qgz` / `.qgs` QGIS 工程
 - 状态栏显示经纬度、比例尺和渲染状态
 - OSM 版权署名与合规的应用 User-Agent
 - 多照片 Case 工作区：可联合分析最多 6 张同一地点照片，同时兼容单照片
@@ -64,6 +72,16 @@ QGIS 工程保存能力。由 [UrbanComp 团队](https://urbancomp.net)开发。
 - 每次启动随机定位到 24 座全球大城市之一，同一次运行中可随时回到该初始城市
 - 深色“城市观测台”界面、首次使用引导、地图 HUD 和三阶段进度提示
 - 将完整查询、证据、候选与 GIS 核验导出为中英文 Markdown 报告
+
+### `.sgd` 工程与复盘
+
+`.sgd` 是 SakuGIS 自己的版本化单文件格式。它会对包内每个文件记录大小和
+SHA-256，打开时先校验再解压，并拒绝路径穿越、符号链接和不兼容版本。
+API Key、PostGIS DSN 和其他本机凭据不会写入工程。工程只打包已经下载并在
+界面中显示的网络照片缩略图，同时保留原图与网页来源链接。OSM / Google 在线瓦片
+只保存图层定义，不离线缓存影像；远程、数据库或暂不支持的数据源会在保存时
+明确记录为未打包。格式结构和兼容策略见
+[`docs/project-format.md`](docs/project-format.md)。
 
 ## 界面截图
 
@@ -191,7 +209,8 @@ GIS 和界面四页。Qwen 接口地址与 API Key 集中在 API 服务页；还
 候选地点详情使用 Brave Search 的 Web Search 和 Image Search 接口。网络检索
 在后台进行，不会阻塞地图拖动；网页与照片均保留可点击的原始来源。照片只是
 搜索相关结果，不代表已经由 SakuGIS 确认拍摄位置，版权归原始发布者所有。
-搜索结果和缩略图只在当前会话内短暂缓存，不写入磁盘。图片检索会扩大初始
+搜索结果和缩略图在当前会话内短暂缓存；用户明确保存 `.sgd` 时，会把已经
+取得的介绍、来源链接和界面缩略图写入工程，以便离线复盘。图片检索会扩大初始
 候选池，过滤明显的零售商品、酒类、玩具、模型和购物页面，并限制同一来源
 页面重复出现的数量，以提高来源多样性。该过滤属于启发式规则，不能替代
 用户对原始来源的检查。只有 GIS 核验提供具名地点身份，并且 Brave 至少

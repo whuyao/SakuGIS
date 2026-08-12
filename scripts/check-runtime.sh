@@ -69,7 +69,7 @@ fi
 "$PYTHON_EXECUTABLE" - <<'PY'
 import os
 
-from qgis.PyQt.QtCore import QTimer
+from qgis.PyQt.QtCore import QEventLoop, QTimer
 from qgis.core import (
     Qgis,
     QgsApplication,
@@ -163,6 +163,47 @@ window._set_theme(DARK)
 if get_theme() != DARK or "#07101B" not in app.styleSheet():
     raise SystemExit("Dark theme did not restore")
 print("Light/dark theme switch: OK")
+
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from sakugis.project_archive import save_sgd
+
+empty_project_source = TemporaryDirectory(prefix="sakugis-empty-sgd-smoke-")
+empty_project_path = Path(empty_project_source.name) / "empty-map.sgd"
+save_sgd(
+    str(empty_project_path),
+    query="尚未运行 Agent 的工程",
+    image_paths=[],
+    result=None,
+    map_state={
+        "canvas": {
+            "crs": "EPSG:3857",
+            "extent_wgs84": [139.55, 35.55, 139.85, 35.85],
+        },
+        "layers": [],
+    },
+)
+if not window.load_project_path(str(empty_project_path), confirm_discard=False):
+    raise SystemExit("Empty SGD project did not load")
+window._add_default_basemap_if_empty()
+empty_project_wait = QEventLoop()
+QTimer.singleShot(220, empty_project_wait.quit)
+empty_project_wait.exec_()
+empty_center = center_transform.transform(window.canvas.center())
+if not (139.55 <= empty_center.x() <= 139.85 and 35.55 <= empty_center.y() <= 35.85):
+    raise SystemExit("Default OSM overwrote the saved empty-project extent")
+if window._sgd_dirty or window.project.isDirty():
+    raise SystemExit("Opening an empty SGD project created false unsaved changes")
+window.project.clear()
+window._release_sgd_extraction()
+window._sgd_path = ""
+window._sgd_dirty = False
+window._set_initial_extent()
+window.add_osm_basemap()
+empty_project_source.cleanup()
+print("Empty SGD extent and clean-state replay: OK")
+
 smoke_theme = os.environ.get("SAKUGIS_SMOKE_THEME")
 if smoke_theme:
     window._set_theme(smoke_theme)
@@ -444,6 +485,128 @@ if os.environ.get("SAKUGIS_SMOKE_AGENT_RESULT") == "1":
 
         write_markdown_report(report_path, sample_result)
         print(f"Markdown report: {report_path}")
+    if os.environ.get("SAKUGIS_SMOKE_SGD") == "1":
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        from qgis.PyQt.QtGui import QColor, QImage
+
+        source_case = TemporaryDirectory(prefix="sakugis-sgd-smoke-source-")
+        source_root = Path(source_case.name)
+        photo_path = source_root / "multimodal-input.png"
+        image = QImage(32, 24, QImage.Format_RGB32)
+        image.fill(QColor("#33aacc"))
+        if not image.save(str(photo_path)):
+            raise SystemExit("Could not create SGD smoke-test photo")
+        local_data_path = source_root / "review-area.geojson"
+        local_data_path.write_text(
+            '{"type":"FeatureCollection","features":['
+            '{"type":"Feature","properties":{"name":"review"},'
+            '"geometry":{"type":"Point","coordinates":[138.383,34.977]}}]}',
+            encoding="utf-8",
+        )
+        from qgis.core import QgsVectorLayer
+
+        local_layer = QgsVectorLayer(
+            str(local_data_path), "SGD local review layer", "ogr"
+        )
+        if not local_layer.isValid():
+            raise SystemExit("Could not create SGD local layer")
+        local_layer.setOpacity(0.42)
+        window.project.addMapLayer(local_layer)
+        sample_result.image_path = str(photo_path)
+        sample_result.image_paths = [str(photo_path)]
+        window.agent_panel.restore_session(
+            sample_result.query, [str(photo_path)], sample_result
+        )
+        archived_thumbnail = source_root / "places/C1/thumbnail-1.img"
+        archived_thumbnail.parent.mkdir(parents=True, exist_ok=True)
+        archived_thumbnail.write_bytes(photo_path.read_bytes())
+        window.place_details_panel.restore_archive(
+            {
+                "candidates": {
+                    "C1": {
+                        "candidate_id": "C1",
+                        "query": "静冈市 地点介绍",
+                        "web_results": [
+                            {
+                                "title": "静冈市测试介绍",
+                                "url": "https://example.com/shizuoka",
+                                "description": "SGD 离线复盘测试资料",
+                                "source": "example.com",
+                            }
+                        ],
+                        "images": [
+                            {
+                                "title": "静冈市测试照片",
+                                "page_url": "https://example.com/shizuoka/photo",
+                                "thumbnail_url": "https://imgs.search.brave.com/example",
+                                "original_url": "https://example.com/shizuoka.jpg",
+                                "source": "example.com",
+                                "width": 32,
+                                "height": 24,
+                            }
+                        ],
+                        "warnings": [],
+                        "thumbnails": [
+                            {
+                                "index": 0,
+                                "archive_path": "places/C1/thumbnail-1.img",
+                            }
+                        ],
+                    }
+                }
+            },
+            source_root,
+        )
+        window.place_details_panel.set_candidate(sample_result.candidates[0])
+        project_path = source_root / "round-trip.sgd"
+        if not window._save_sgd_path(str(project_path)):
+            raise SystemExit("SGD project save failed")
+        if not project_path.is_file():
+            raise SystemExit("SGD project file was not created")
+        if not window.load_project_path(str(project_path), confirm_discard=False):
+            raise SystemExit("SGD project load failed")
+        replay_layers = [
+            layer
+            for layer in window.project.mapLayers().values()
+            if layer.customProperty("sakugis/candidate-layer")
+        ]
+        if len(replay_layers) != len(sample_result.candidates):
+            raise SystemExit("SGD replay did not rebuild candidate map layers")
+        if window.agent_panel.query_text() != sample_result.query:
+            raise SystemExit("SGD replay did not restore query text")
+        if len(window.agent_panel.image_paths()) != 1:
+            raise SystemExit("SGD replay did not restore packaged photos")
+        if not Path(window.agent_panel.image_paths()[0]).is_file():
+            raise SystemExit("SGD replay photo is not available")
+        if window.agent_panel.last_result() is None:
+            raise SystemExit("SGD replay did not restore Agent results")
+        replay_place_details, replay_place_blobs = (
+            window.place_details_panel.archive_snapshot()
+        )
+        if (
+            replay_place_details["candidates"]["C1"]["web_results"][0]["title"]
+            != "静冈市测试介绍"
+        ):
+            raise SystemExit("SGD replay did not restore web descriptions")
+        if len(replay_place_blobs) != 1:
+            raise SystemExit("SGD replay did not restore web photo thumbnails")
+        restored_local_layers = [
+            layer
+            for layer in window.project.mapLayers().values()
+            if layer.name() == "SGD local review layer"
+        ]
+        if len(restored_local_layers) != 1:
+            raise SystemExit("SGD replay did not restore packaged local GIS data")
+        if restored_local_layers[0].featureCount() != 1:
+            raise SystemExit("SGD replay local GIS data is incomplete")
+        if abs(restored_local_layers[0].opacity() - 0.42) > 0.01:
+            raise SystemExit("SGD replay did not restore layer opacity")
+        if not window.save_project():
+            raise SystemExit("SGD replay project could not be saved again")
+        source_case.cleanup()
+        print("SGD save/load and map replay: OK")
 
 screenshot_path = os.environ.get("SAKUGIS_SMOKE_SCREENSHOT")
 duration_ms = int(os.environ.get("SAKUGIS_SMOKE_DURATION_MS", "750"))

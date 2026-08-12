@@ -19,6 +19,7 @@ credentials*.json
 *.mobileprovision
 *.qgz
 *.qgs
+*.sgd
 *.gpkg
 *.sqlite
 *.mbtiles

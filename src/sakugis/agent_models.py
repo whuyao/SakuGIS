@@ -41,7 +41,9 @@ class Evidence:
     @classmethod
     def from_dict(cls, value: Dict[str, Any], index: int) -> "Evidence":
         return cls(
-            evidence_id=str(value.get("id") or f"E{index + 1}"),
+            evidence_id=str(
+                value.get("evidence_id") or value.get("id") or f"E{index + 1}"
+            ),
             kind=str(value.get("kind") or "unknown"),
             value=str(value.get("value") or ""),
             reliability=clamp(value.get("reliability")),
@@ -120,7 +122,9 @@ class Candidate:
         initial = clamp(value.get("initial_score"))
         radius = clamp(value.get("radius_km", 250.0), 0.1, 20000.0)
         return cls(
-            candidate_id=str(value.get("id") or f"C{index + 1}"),
+            candidate_id=str(
+                value.get("candidate_id") or value.get("id") or f"C{index + 1}"
+            ),
             name=str(value.get("name") or f"候选 {index + 1}"),
             country=str(value.get("country") or ""),
             region=str(value.get("region") or ""),
@@ -146,6 +150,64 @@ class Candidate:
             retrieval_score=initial,
         )
 
+    @classmethod
+    def from_saved_dict(cls, value: Dict[str, Any], index: int) -> "Candidate":
+        """Restore the complete, post-verification candidate saved in a project."""
+
+        candidate = cls.from_dict(value, index)
+        float_fields = (
+            "ranking_score",
+            "model_verification_score",
+            "gis_score",
+            "gis_coverage",
+            "photo_consistency",
+            "model_candidate_score",
+            "model_latitude",
+            "model_longitude",
+            "retrieval_score",
+        )
+        int_fields = ("photo_support_count", "photo_total_count")
+        bool_fields = ("gis_verified", "retrieval_verified")
+        string_fields = (
+            "reverse_label",
+            "gis_backend",
+            "rationale",
+            "retrieval_query",
+            "retrieval_source",
+            "retrieval_label",
+            "retrieval_source_id",
+        )
+        for name in float_fields:
+            if name in value:
+                setattr(candidate, name, float(value[name] or 0.0))
+        for name in int_fields:
+            if name in value:
+                setattr(candidate, name, int(value[name] or 0))
+        for name in bool_fields:
+            if name in value:
+                setattr(candidate, name, bool(value[name]))
+        for name in string_fields:
+            if name in value:
+                setattr(candidate, name, str(value[name] or ""))
+        candidate.ranking_components = {
+            str(key): float(component or 0.0)
+            for key, component in dict(
+                value.get("ranking_components") or {}
+            ).items()
+        }
+        candidate.supporting_evidence = clean_string_list(
+            value.get("supporting_evidence")
+        )
+        candidate.contradictions = clean_string_list(
+            value.get("contradictions")
+        )
+        candidate.gis_checks = [
+            GISCheck.from_dict(item)
+            for item in value.get("gis_checks", [])
+            if isinstance(item, dict)
+        ]
+        return candidate
+
 
 @dataclass
 class GeoAnalysisResult:
@@ -167,3 +229,44 @@ class GeoAnalysisResult:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
+    @classmethod
+    def from_dict(cls, value: Dict[str, Any]) -> "GeoAnalysisResult":
+        """Restore a completed analysis without calling a model or GIS service."""
+
+        if not isinstance(value, dict):
+            raise ValueError("分析结果格式无效。")
+        evidence_values = value.get("evidence") or []
+        candidate_values = value.get("candidates") or []
+        constraint_values = value.get("spatial_constraints") or []
+        return cls(
+            query=str(value.get("query") or ""),
+            image_path=str(value.get("image_path") or ""),
+            evidence_summary=str(value.get("evidence_summary") or ""),
+            evidence=[
+                Evidence.from_dict(item, index)
+                for index, item in enumerate(evidence_values)
+                if isinstance(item, dict)
+            ],
+            candidates=[
+                Candidate.from_saved_dict(item, index)
+                for index, item in enumerate(candidate_values)
+                if isinstance(item, dict)
+            ],
+            verification_summary=str(value.get("verification_summary") or ""),
+            caveat=str(value.get("caveat") or ""),
+            model=str(value.get("model") or ""),
+            image_paths=clean_string_list(value.get("image_paths")),
+            case_mode=str(value.get("case_mode") or "same_location"),
+            confidence_status=str(value.get("confidence_status") or "uncalibrated"),
+            gis_backend=str(value.get("gis_backend") or ""),
+            retrieval_backend=str(value.get("retrieval_backend") or ""),
+            retrieval_resolved_count=int(
+                value.get("retrieval_resolved_count") or 0
+            ),
+            spatial_constraints=[
+                SpatialConstraint.from_dict(item)
+                for item in constraint_values
+                if isinstance(item, dict)
+            ],
+        )

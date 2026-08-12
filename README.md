@@ -2,6 +2,9 @@
 
 [中文说明](README.zh-CN.md) · English
 
+> **Latest release: [Download SakuGIS 0.4.0 for Apple Silicon (.dmg)](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.dmg)**<br>
+> macOS 13 or later · Apple Silicon only · [Release notes](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.0) · [SHA-256](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.sha256.txt)
+
 SakuGIS is an experimental macOS desktop GIS for visual geolocation and
 inspectable spatial verification. It combines QGIS, OpenStreetMap, optional
 PostGIS, and a three-agent Qwen workflow in a bilingual interface.
@@ -10,18 +13,19 @@ Developed by the [UrbanComp team](https://urbancomp.net).
 
 ## Download
 
-The current installable build is
-**[SakuGIS 0.3.1 — Apple Silicon Test Build](https://github.com/whuyao/SakuGIS/releases/tag/v0.3.1)**.
+The latest installable build is **SakuGIS 0.4.0 for Apple Silicon**.
 
-[Download DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.3.1/SakuGIS-0.3.1-Apple-Silicon.dmg)
+[Download the latest DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.dmg)
 ·
-[SHA-256](https://github.com/whuyao/SakuGIS/releases/download/v0.3.1/SakuGIS-0.3.1-Apple-Silicon.sha256.txt)
+[SHA-256](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.sha256.txt)
 ·
-[Release notes](https://github.com/whuyao/SakuGIS/releases/tag/v0.3.1)
+[Release notes and all assets](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.0)
 
-Version 0.3.1 keeps the Qwen endpoint and API key together while clearly
-distinguishing their roles, applies compatible-service changes immediately,
-and selects the startup map from 24 major world cities at random.
+Version 0.4.0 introduces replayable `.sgd` projects. A single validated file
+can carry the query, original input photos, structured Agent/GIS results,
+supported local GIS layers and styles, map state, and acquired Place Explorer
+material. Reopening reconstructs the map and analysis without rerunning online
+services. Qwen/Brave keys and PostGIS connection strings are never packaged.
 
 The package requires macOS 13 or later and an Apple Silicon Mac. It is about
 1.7 GB because it includes an independent QGIS runtime; a separate QGIS
@@ -36,6 +40,12 @@ Finder and choose **Open**.
 ## Highlights
 
 - QGIS-powered map canvas with pan, zoom, full extent, and project save/load.
+- Replayable single-file `.sgd` projects package query text, original input
+  photos, all three structured Agent stages, GIS checks and scores, map state,
+  supported local GIS data, layer styles, and acquired Brave descriptions,
+  displayed photo thumbnails, and source links. Reopening rebuilds the candidate
+  markers, uncertainty ranges, and result panels without calling online services.
+- Legacy QGIS `.qgz` / `.qgs` open and save-as remain available.
 - OpenStreetMap plus replaceable XYZ imagery layers.
 - Local GeoJSON, GeoPackage, Shapefile, KML, GeoTIFF, and common GIS formats.
 - Layer visibility, ordering, renaming, opacity, and candidate navigation.
@@ -68,6 +78,18 @@ Finder and choose **Open**.
   resized or docked back into the main window.
 - Bilingual Markdown query reports with evidence, checks, sources, and
   uncertainty notes.
+
+### `.sgd` projects and replay
+
+`.sgd` is SakuGIS's versioned, single-file project format. Each packaged entry
+has a recorded size and SHA-256 digest and is validated before extraction;
+path traversal, symbolic links, and incompatible versions are rejected. API
+keys, PostGIS DSNs, and other machine credentials are never included. OSM and
+Google online tiles retain only their layer definitions and are not cached for
+offline use. Only already downloaded web-photo thumbnails are packaged, while
+their original image and page URLs remain as provenance. Remote, database, and
+unsupported layer sources are reported as unpackaged. See the
+[format specification](docs/project-format.md).
 
 ## Screenshots
 
@@ -204,9 +226,10 @@ query data, or private photographs. See [SECURITY.md](SECURITY.md).
 Candidate details use Brave Web Search and Image Search in background threads,
 so map interaction remains responsive. Every web result and image links to its
 original page. Images are search-related references, not confirmed capture
-locations, and remain subject to the original publisher's rights. Results and
-thumbnail bytes use only a short-lived in-memory session cache and are not
-persisted to disk. Image discovery expands the search pool, removes obvious
+locations, and remain subject to the original publisher's rights. During a
+session, results use a short-lived memory cache. An explicit `.sgd` save embeds
+the acquired descriptions, provenance URLs, and displayed thumbnail bytes so
+the case can be replayed offline. Image discovery expands the search pool, removes obvious
 retail, liquor, toy, model, and shopping-page noise, and limits repeated
 results from one source page to improve diversity. This filtering is heuristic
 and does not replace source review. The Place Explorer is shown only when GIS

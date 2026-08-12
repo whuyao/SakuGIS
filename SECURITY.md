@@ -10,6 +10,7 @@ This repository must not contain:
 - PostGIS connection strings, passwords, or private certificates;
 - `.env` files or cloud profile CSV files;
 - user photographs, exported queries, local GIS datasets, or cached map data;
+- `.sgd` case projects, which intentionally package inputs, results, and local data;
 - generated applications, DMGs, videos, or bundled QGIS runtimes.
 
 SakuGIS resolves credentials at runtime from the current user's macOS
@@ -37,6 +38,7 @@ reproduction steps, affected versions, and the expected impact.
 - PostGIS 连接字符串、数据库密码或私有证书；
 - `.env` 文件或云服务配置 CSV；
 - 用户照片、查询导出、本地 GIS 数据集或地图缓存；
+- `.sgd` 案例工程，其中会按设计打包输入、结果和本地数据；
 - 生成的应用程序、DMG、视频或打包后的 QGIS 运行时。
 
 SakuGIS 只在运行时从当前用户的 macOS 钥匙串或显式设置的环境变量读取凭据。

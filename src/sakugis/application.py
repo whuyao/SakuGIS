@@ -129,7 +129,7 @@ def run() -> int:
     )
     settings.setValue(
         "qgis/networkAndProxy/userAgent",
-        "SakuGIS/0.3.1 (+https://urbancomp.net)",
+        "SakuGIS/0.4.0 (+https://urbancomp.net)",
     )
 
     _install_exception_hook()
@@ -139,7 +139,7 @@ def run() -> int:
     window = MainWindow()
     for argument in launch_arguments:
         candidate = Path(argument)
-        if candidate.suffix.lower() in {".qgz", ".qgs"} and candidate.is_file():
+        if candidate.suffix.lower() in {".sgd", ".qgz", ".qgs"} and candidate.is_file():
             window.load_project_path(str(candidate), confirm_discard=False)
             break
     window.show()
