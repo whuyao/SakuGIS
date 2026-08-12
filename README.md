@@ -2,6 +2,9 @@
 
 [中文说明](README.zh-CN.md) · English
 
+> **Latest release: [Download SakuGIS 0.4.0 for Apple Silicon (.dmg)](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.dmg)**<br>
+> macOS 13 or later · Apple Silicon only · [Release notes](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.0) · [SHA-256](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.sha256.txt)
+
 SakuGIS is an experimental macOS desktop GIS for visual geolocation and
 inspectable spatial verification. It combines QGIS, OpenStreetMap, optional
 PostGIS, and a three-agent Qwen workflow in a bilingual interface.
@@ -10,14 +13,13 @@ Developed by the [UrbanComp team](https://urbancomp.net).
 
 ## Download
 
-The current installable build is
-**[SakuGIS 0.4.0 — Apple Silicon Test Build](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.0)**.
+The latest installable build is **SakuGIS 0.4.0 for Apple Silicon**.
 
-[Download DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.dmg)
+[Download the latest DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.dmg)
 ·
 [SHA-256](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.sha256.txt)
 ·
-[Release notes](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.0)
+[Release notes and all assets](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.0)
 
 Version 0.4.0 introduces replayable `.sgd` projects. A single validated file
 can carry the query, original input photos, structured Agent/GIS results,

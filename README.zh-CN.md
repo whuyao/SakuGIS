@@ -2,20 +2,22 @@
 
 中文说明 · [English](README.md)
 
+> **最新版本：[下载 SakuGIS 0.4.0 Apple Silicon 安装包（.dmg）](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.dmg)**<br>
+> macOS 13 或更高版本 · 仅支持 Apple Silicon · [版本说明](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.0) · [SHA-256 校验](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.sha256.txt)
+
 SakuGIS 是一款面向 macOS 的轻量桌面 GIS 应用。当前版本以 QGIS LTR
 作为 GIS 内核，提供在线底图、本地 GIS 数据加载、图层管理、地图漫游和
 可复盘的 SakuGIS 工程。由 [UrbanComp 团队](https://urbancomp.net)开发。
 
 ## 下载
 
-当前可安装版本为
-**[SakuGIS 0.4.0 — Apple Silicon 测试版](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.0)**。
+当前最新可安装版本为 **SakuGIS 0.4.0 Apple Silicon 版**。
 
-[下载 DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.dmg)
+[下载最新版 DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.dmg)
 ·
 [SHA-256 校验文件](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.sha256.txt)
 ·
-[版本说明与注意事项](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.0)
+[版本说明、注意事项与全部附件](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.0)
 
 0.4.0 新增可复盘的 `.sgd` 单文件工程，可打包查询、原始输入照片、三 Agent
 与 GIS 结构化结果、支持的本地 GIS 图层和样式、地图状态，以及已经取得的
