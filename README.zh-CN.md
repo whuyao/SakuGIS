@@ -2,8 +2,8 @@
 
 中文说明 · [English](README.md)
 
-> **最新版本：[下载 SakuGIS 0.4.0 Apple Silicon 安装包（.dmg）](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.dmg)**<br>
-> macOS 13 或更高版本 · 仅支持 Apple Silicon · [版本说明](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.0) · [SHA-256 校验](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.sha256.txt)
+> **最新版本：[下载 SakuGIS 0.4.1 Apple Silicon 安装包（.dmg）](https://github.com/whuyao/SakuGIS/releases/download/v0.4.1/SakuGIS-0.4.1-Apple-Silicon.dmg)**<br>
+> macOS 13 或更高版本 · 仅支持 Apple Silicon · [版本说明](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.1) · [SHA-256 校验](https://github.com/whuyao/SakuGIS/releases/download/v0.4.1/SakuGIS-0.4.1-Apple-Silicon.sha256.txt)
 
 SakuGIS 是一款面向 macOS 的轻量桌面 GIS 应用。当前版本以 QGIS LTR
 作为 GIS 内核，提供在线底图、本地 GIS 数据加载、图层管理、地图漫游和
@@ -11,18 +11,19 @@ SakuGIS 是一款面向 macOS 的轻量桌面 GIS 应用。当前版本以 QGIS 
 
 ## 下载
 
-当前最新可安装版本为 **SakuGIS 0.4.0 Apple Silicon 版**。
+当前最新可安装版本为 **SakuGIS 0.4.1 Apple Silicon 版**。
 
-[下载最新版 DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.dmg)
+[下载最新版 DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.4.1/SakuGIS-0.4.1-Apple-Silicon.dmg)
 ·
-[SHA-256 校验文件](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.sha256.txt)
+[SHA-256 校验文件](https://github.com/whuyao/SakuGIS/releases/download/v0.4.1/SakuGIS-0.4.1-Apple-Silicon.sha256.txt)
 ·
-[版本说明、注意事项与全部附件](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.0)
+[版本说明、注意事项与全部附件](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.1)
 
-0.4.0 新增可复盘的 `.sgd` 单文件工程，可打包查询、原始输入照片、三 Agent
-与 GIS 结构化结果、支持的本地 GIS 图层和样式、地图状态，以及已经取得的
-Place Explorer 介绍与缩略图。重新打开即可恢复地图和分析，无需重新调用在线
-服务；Qwen/Brave Key 与 PostGIS 连接信息不会进入工程包。
+0.4.1 新增可选的 Kimi K3 多模态推理，并继续以通义千问作为默认模型；同时
+改善浅色模式设置窗口的输入框、状态栏和滚动布局。“修改输入”后可随时点击
+“查看结果”返回既有分析，不会重新调用模型或清除地图图层。`.sgd` 仍可完整
+复盘输入、Agent/GIS 结果、地图状态、本地 GIS 数据及已取得的网络资料；
+Qwen/Kimi/Brave Key 与 PostGIS 连接信息不会进入工程包。
 
 安装包支持 macOS 13 或更高版本，仅支持 Apple Silicon。DMG 约 1.7 GB，
 已包含独立 QGIS 运行时，无需另行安装 QGIS。当前测试包采用 ad-hoc 签名且
@@ -46,8 +47,12 @@ Place Explorer 介绍与缩略图。重新打开即可恢复地图和分析，�
 - 多照片 Case 工作区：可联合分析最多 6 张同一地点照片，同时兼容单照片
   和纯文本查询；每张照片分别发送一次视觉请求，证据在本机合并，避免多图
   同时上传造成上下文失败，并保留照片来源、合并跨照片重复线索
-- 三阶段千问流水线：证据提取、候选假设、候选核验与重排
-- 千问偶发返回不完整 JSON 时执行一次无历史、低温度的受控重试
+- 可选择通义千问或 Kimi K3 作为三阶段模型提供商；本机与新安装默认仍为
+  Qwen，两个提供商使用相互隔离的 macOS 钥匙串条目
+- Kimi K3 支持图片输入及 Low / High / Max 推理强度；建议日常使用 High，
+  高难度模糊案例可切换 Max
+- 模型偶发返回不完整 JSON 时执行一次无历史受控重试；K3 因强制推理会
+  消耗输出 token，因此使用独立的输出预算保护
 - Agent 2 真实地点检索：模型候选先通过 PostGIS OSM 名称索引或 Nominatim
   Search 解析为真实地名对象和坐标；别名无法安全解析时，通过坐标反查附加
   真实 OSM 身份并保留被核验的查询坐标，未解析项明确标记为模型回退
@@ -162,14 +167,14 @@ API Key、PostGIS DSN 和其他本机凭据不会写入工程。工程只打包�
 QGIS_APP=/Applications/QGIS.app ./scripts/run-dev.sh
 ```
 
-## 千问 API
+## 模型 API
 
-SakuGIS 默认使用阿里云 Model Studio 北京地域的公开 OpenAI 兼容地址，默认
-模型为 `qwen3.7-plus`。项目不包含 API Key、业务空间 ID 或项目专属地址，
-也不会把 Key 写入配置文件。在菜单栏打开“设置 → 设置…”，可输入或更新
-通义千问 API Key 和 OpenAI 兼容接口地址。接口地址决定请求发往哪个服务，
-API Key 是该服务的访问凭证，两者均可由用户独立修改；未配置 Key 时点击
-“开始全球定位”也会自动打开设置窗口。保存后立即生效，不需要重启。
+SakuGIS 默认仍使用通义千问 `qwen3.7-plus`，不会自动切换已有用户的模型。
+“设置 → 设置…”新增 Kimi K3 可选提供商；用户可以使用 Qwen 或 Kimi，只有
+当前所选提供商需要配置完整。两者分别保存接口地址、模型和 API Key，互不
+覆盖。Kimi 还可设置 Low / High / Max 推理强度，日常建议 High。未配置当前
+所选提供商的 Key 时，点击“开始全球定位”会自动打开设置窗口；保存后立即
+生效，无需重启。
 开发环境仍可运行：
 
 ```bash
@@ -187,19 +192,33 @@ SAKUGIS_QWEN_MAX_PROMPT_CHARS=48000 \
 ./scripts/run-dev.sh
 ```
 
+Kimi Key 使用独立服务名 `net.urbancomp.sakugis.kimi`，不会覆盖 Qwen Key。
+开发环境可临时切换：
+
+```bash
+SAKUGIS_MODEL_PROVIDER=kimi \
+SAKUGIS_KIMI_API_KEY=... \
+SAKUGIS_KIMI_BASE_URL=https://api.moonshot.cn/v1 \
+SAKUGIS_KIMI_MODEL=kimi-k3 \
+SAKUGIS_KIMI_REASONING_EFFORT=high \
+./scripts/run-dev.sh
+```
+
 如需使用业务空间专属地址，可通过 `SAKUGIS_QWEN_BASE_URL` 在运行时覆盖；
 不要将该地址或业务空间配置提交到公开仓库。
 
-千问请求不保留对话历史：每个阶段只发送一条系统消息和当前 Case 的输入，
+模型请求不保留对话历史：每个阶段只发送一条系统消息和当前 Case 的输入，
 不会带入上一次定位。照片会先在本机读取元数据和缩放，再由 Agent 1 每次仅
 发送一张；Agent 2/3 只接收压缩后的结构化 JSON。三个阶段的提示预算分别为
 12,000 / 18,000 / 32,000 字符，客户端另有 48,000 字符总保护；不同模型可
-通过 `SAKUGIS_QWEN_MAX_PROMPT_CHARS` 调整最后一道保护。当前候选评分是用于
+通过 `SAKUGIS_QWEN_MAX_PROMPT_CHARS` 调整最后一道保护。Kimi K3 属于强制
+推理模型，适配器不会发送千问专属的 `enable_thinking` 参数，并为 High 预留
+6,144、Max 预留 8,192 个输出 token，避免内部推理挤占最终 JSON。当前候选评分是用于
 比较候选的探索排序分数，尚未经过独立地理验证集校准，因此不是统计概率。
 
 “设置 → 设置…”也是统一的工程化配置入口，包含 API 服务、模型与算法、
-GIS 和界面四页。Qwen 接口地址与 API Key 集中在 API 服务页；还可调整模型、
-推理温度、请求超时、提示字符上限、
+GIS 和界面四页。Qwen、Kimi 和 Brave 凭据集中在 API 服务页；还可调整模型
+提供商、Qwen 推理温度、Kimi 推理强度、请求超时、提示字符上限、
 候选地点上限、PostGIS DSN、语言及浅色/深色模式。非密钥参数保存到当前
 用户的 QGIS 设置，密钥和 DSN 只保存到 macOS 钥匙串；全部从下一次调用
 立即生效。

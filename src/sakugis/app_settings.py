@@ -11,12 +11,21 @@ from sakugis.credentials import (
     DEFAULT_CANDIDATE_LIMIT,
     DEFAULT_MAX_PROMPT_CHARS,
     DEFAULT_MODEL,
+    DEFAULT_KIMI_BASE_URL,
+    DEFAULT_KIMI_MODEL,
+    DEFAULT_KIMI_REASONING_EFFORT,
+    DEFAULT_KIMI_TIMEOUT,
     DEFAULT_QWEN_TEMPERATURE,
     DEFAULT_QWEN_TIMEOUT,
 )
 
 
 SETTING_SPECS = {
+    "provider": (
+        "sakugis/model/provider",
+        "SAKUGIS_MODEL_PROVIDER",
+        "qwen",
+    ),
     "base_url": (
         "sakugis/qwen/base_url",
         "SAKUGIS_QWEN_BASE_URL",
@@ -26,6 +35,26 @@ SETTING_SPECS = {
         "sakugis/qwen/model",
         "SAKUGIS_QWEN_MODEL",
         DEFAULT_MODEL,
+    ),
+    "kimi_base_url": (
+        "sakugis/kimi/base_url",
+        "SAKUGIS_KIMI_BASE_URL",
+        DEFAULT_KIMI_BASE_URL,
+    ),
+    "kimi_model": (
+        "sakugis/kimi/model",
+        "SAKUGIS_KIMI_MODEL",
+        DEFAULT_KIMI_MODEL,
+    ),
+    "kimi_reasoning_effort": (
+        "sakugis/kimi/reasoning_effort",
+        "SAKUGIS_KIMI_REASONING_EFFORT",
+        DEFAULT_KIMI_REASONING_EFFORT,
+    ),
+    "kimi_timeout": (
+        "sakugis/kimi/timeout",
+        "SAKUGIS_KIMI_TIMEOUT",
+        DEFAULT_KIMI_TIMEOUT,
     ),
     "temperature": (
         "sakugis/qwen/temperature",

@@ -207,9 +207,18 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "settings.interface_tab": {ZH_CN: "界面", EN: "Interface"},
     "settings.save": {ZH_CN: "保存", EN: "Save"},
     "settings.cancel": {ZH_CN: "取消", EN: "Cancel"},
+    "settings.provider_group": {
+        ZH_CN: "Agent 模型提供商",
+        EN: "Agent Model Provider",
+    },
+    "settings.provider": {ZH_CN: "当前使用", EN: "Active provider"},
     "settings.qwen_group": {
-        ZH_CN: "通义千问（必需）",
-        EN: "Qwen (Required)",
+        ZH_CN: "通义千问",
+        EN: "Qwen",
+    },
+    "settings.kimi_group": {
+        ZH_CN: "Kimi K3",
+        EN: "Kimi K3",
     },
     "settings.brave_group": {
         ZH_CN: "Brave Search（可选）",
@@ -224,6 +233,10 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         ZH_CN: "未配置（可选）",
         EN: "Not configured (optional)",
     },
+    "settings.provider_missing": {
+        ZH_CN: "未配置；选择该提供商后必须填写",
+        EN: "Missing; required when this provider is selected",
+    },
     "settings.keep_existing": {
         ZH_CN: "留空以保留当前密钥",
         EN: "Leave blank to keep the current key",
@@ -236,10 +249,18 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         ZH_CN: "可选：输入 Brave API Key",
         EN: "Optional: enter a Brave API key",
     },
+    "settings.enter_kimi": {
+        ZH_CN: "输入 Moonshot / Kimi API Key",
+        EN: "Enter the Moonshot / Kimi API key",
+    },
     "settings.status": {ZH_CN: "状态", EN: "Status"},
     "settings.qwen_key": {
         ZH_CN: "通义千问 API Key",
         EN: "Qwen API Key",
+    },
+    "settings.kimi_key": {
+        ZH_CN: "Kimi API Key",
+        EN: "Kimi API Key",
     },
     "settings.brave_key": {
         ZH_CN: "Brave API Key",
@@ -248,6 +269,10 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "settings.qwen_note": {
         ZH_CN: "接口地址决定请求发送到哪个 OpenAI 兼容服务，API Key 是该服务的访问凭证，两者可独立设置。用于多模态证据提取、候选生成与综合推理。",
         EN: "The endpoint selects the OpenAI-compatible service, while the API key is its access credential; each can be configured independently. They are used for multimodal evidence extraction, candidate generation, and joint reasoning.",
+    },
+    "settings.kimi_note": {
+        ZH_CN: "Kimi K3 支持图片、视频和强制推理。SakuGIS 当前接入图片与文字输入；High 适合作为日常默认，Max 可用于更困难的模糊案例。",
+        EN: "Kimi K3 supports image, video, and mandatory reasoning. SakuGIS currently connects image and text input; High is the recommended everyday default, while Max is available for harder ambiguous cases.",
     },
     "settings.brave_note": {
         ZH_CN: "用于候选地点的网络介绍与照片检索。未配置时仍可完成 GIS 定位，但不会弹出网络搜索结果。",
@@ -262,18 +287,34 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         ZH_CN: "API Key 只保存到当前用户的 macOS 钥匙串，不写入工程、App 或 Git 仓库。",
         EN: "API keys are stored only in the current user's macOS Keychain, never in projects, the app bundle, or Git.",
     },
-    "settings.model_group": {
-        ZH_CN: "通义千问与候选检索参数",
-        EN: "Qwen and Candidate Retrieval",
+    "settings.qwen_model_group": {
+        ZH_CN: "通义千问模型",
+        EN: "Qwen Model",
     },
-    "settings.base_url": {
+    "settings.kimi_model_group": {
+        ZH_CN: "Kimi K3 模型",
+        EN: "Kimi K3 Model",
+    },
+    "settings.agent_parameters": {
+        ZH_CN: "通用 Agent 参数",
+        EN: "Shared Agent Parameters",
+    },
+    "settings.qwen_base_url": {
         ZH_CN: "Qwen 接口地址（Base URL）",
         EN: "Qwen endpoint (Base URL)",
+    },
+    "settings.kimi_base_url": {
+        ZH_CN: "Kimi 接口地址（Base URL）",
+        EN: "Kimi endpoint (Base URL)",
     },
     "settings.model": {ZH_CN: "模型", EN: "Model"},
     "settings.temperature": {
         ZH_CN: "推理温度",
         EN: "Temperature",
+    },
+    "settings.reasoning_effort": {
+        ZH_CN: "推理强度",
+        EN: "Reasoning effort",
     },
     "settings.prompt_limit": {
         ZH_CN: "最大提示字符数",
@@ -284,8 +325,8 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         EN: "Candidate limit",
     },
     "settings.model_note": {
-        ZH_CN: "保存后从下一次分析立即生效，无需重启。定位任务建议保持较低温度，以提高输出稳定性。",
-        EN: "Changes apply to the next analysis immediately, without restarting. A low temperature is recommended for stable geolocation output.",
+        ZH_CN: "保存后从下一次分析立即生效，无需重启。千问建议保持较低温度；Kimi K3 建议默认使用 High，困难案例可切换 Max。",
+        EN: "Changes apply to the next analysis immediately, without restarting. Keep Qwen temperature low; use High for Kimi K3 by default and Max for difficult cases.",
     },
     "settings.postgis_group": {
         ZH_CN: "PostGIS 空间验证（可选）",
@@ -320,6 +361,14 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "settings.qwen_required_detail": {
         ZH_CN: "通义千问是 Agent 分析的必需服务，请输入 API Key 后保存。",
         EN: "Qwen is required for Agent analysis. Enter an API key and save the settings.",
+    },
+    "settings.provider_required_title": {
+        ZH_CN: "需要模型 API Key",
+        EN: "Model API Key Required",
+    },
+    "settings.provider_required_detail": {
+        ZH_CN: "当前选择的 Agent 模型提供商尚未配置 API Key，请填写后保存。",
+        EN: "The selected Agent model provider has no API key. Enter one and save the settings.",
     },
     "settings.invalid_title": {
         ZH_CN: "设置无效",
@@ -469,8 +518,8 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     },
     "about.title": {ZH_CN: "关于 SakuGIS", EN: "About SakuGIS"},
     "about.body": {
-        ZH_CN: "<h3>SakuGIS 0.4.0</h3><p>一款基于 QGIS 的轻量 macOS 桌面 GIS。</p><p>开发团队：<a href=\"https://urbancomp.net\">UrbanComp</a>。</p><p>许可证：GNU GPL v2 或更高版本。</p>",
-        EN: "<h3>SakuGIS 0.4.0</h3><p>A lightweight macOS desktop GIS powered by QGIS.</p><p>Developed by the <a href=\"https://urbancomp.net\">UrbanComp team</a>.</p><p>License: GNU GPL v2 or later.</p>",
+        ZH_CN: "<h3>SakuGIS 0.4.1</h3><p>一款基于 QGIS 的轻量 macOS 桌面 GIS。</p><p>开发团队：<a href=\"https://urbancomp.net\">UrbanComp</a>。</p><p>许可证：GNU GPL v2 或更高版本。</p>",
+        EN: "<h3>SakuGIS 0.4.1</h3><p>A lightweight macOS desktop GIS powered by QGIS.</p><p>Developed by the <a href=\"https://urbancomp.net\">UrbanComp team</a>.</p><p>License: GNU GPL v2 or later.</p>",
     },
     "update.check_button": {ZH_CN: "检查更新…", EN: "Check for Updates…"},
     "update.close_button": {ZH_CN: "关闭", EN: "Close"},
@@ -561,6 +610,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "agent.run": {ZH_CN: "开始全球定位", EN: "Start Global Search"},
     "agent.export": {ZH_CN: "导出报告", EN: "Export Report"},
     "agent.new_search": {ZH_CN: "修改输入", EN: "Edit Input"},
+    "agent.view_result": {ZH_CN: "查看结果", EN: "View Result"},
     "agent.eyebrow": {
         ZH_CN: "GEOLOCATION STUDIO",
         EN: "GEOLOCATION STUDIO",
@@ -638,12 +688,12 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         EN: "The key is stored in the current user's macOS Keychain and is not written to the SakuGIS project.",
     },
     "agent.key_ready": {
-        ZH_CN: "千问：已配置 · 模型 {model}",
-        EN: "Qwen: configured · Model {model}",
+        ZH_CN: "{provider}：已配置 · 模型 {model}",
+        EN: "{provider}: configured · Model {model}",
     },
     "agent.key_missing": {
-        ZH_CN: "千问：未配置 API Key",
-        EN: "Qwen: API Key not configured",
+        ZH_CN: "当前模型：未配置 API Key",
+        EN: "Active model: API Key not configured",
     },
     "agent.gis_online": {
         ZH_CN: "GIS：OSM 在线核验",
@@ -885,16 +935,16 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     },
     "progress.complete": {ZH_CN: "分析完成", EN: "Analysis complete"},
     "error.no_json": {
-        ZH_CN: "千问没有返回可解析的 JSON。",
-        EN: "Qwen did not return parseable JSON.",
+        ZH_CN: "模型服务没有返回可解析的 JSON。",
+        EN: "The model service did not return parseable JSON.",
     },
     "error.invalid_json": {
-        ZH_CN: "千问返回的 JSON 格式不完整。",
-        EN: "Qwen returned incomplete JSON.",
+        ZH_CN: "模型服务返回的 JSON 格式不完整。",
+        EN: "The model service returned incomplete JSON.",
     },
     "error.not_json_object": {
-        ZH_CN: "千问返回的结果不是 JSON 对象。",
-        EN: "Qwen did not return a JSON object.",
+        ZH_CN: "模型服务返回的结果不是 JSON 对象。",
+        EN: "The model service did not return a JSON object.",
     },
     "error.image_missing": {ZH_CN: "找不到所选照片。", EN: "The selected photo was not found."},
     "error.image_too_large": {
@@ -911,45 +961,48 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         EN: "The encoded photo exceeds the API's 10 MB limit.",
     },
     "error.api_content": {
-        ZH_CN: "千问响应缺少消息内容。",
-        EN: "The Qwen response has no message content.",
+        ZH_CN: "模型响应缺少消息内容。",
+        EN: "The model response has no message content.",
     },
     "error.api_message_format": {
-        ZH_CN: "千问响应的消息格式不受支持。",
-        EN: "The Qwen message format is unsupported.",
+        ZH_CN: "模型响应的消息格式不受支持。",
+        EN: "The model response format is unsupported.",
     },
     "error.api_unauthorized": {
-        ZH_CN: "千问 API Key 无效或已过期。",
-        EN: "The Qwen API Key is invalid or expired.",
+        ZH_CN: "{provider} API Key 无效、已过期或没有访问该模型的权限。请在设置中更新 Key。",
+        EN: "The {provider} API key is invalid, expired, or lacks model access. Update it in Settings.",
     },
     "error.api_rate_limit": {
-        ZH_CN: "千问 API 请求过于频繁或额度不足。",
-        EN: "The Qwen API is rate-limited or has insufficient quota.",
+        ZH_CN: "{provider} API 请求过于频繁或额度不足。Key 已被识别，但当前请求无法执行。",
+        EN: "The {provider} API is rate-limited or has insufficient quota. The key was recognized, but the request cannot run.",
     },
     "error.prompt_too_long": {
         ZH_CN: "本次定位输入过长（{actual}/{maximum} 字符），已在发送前停止。请缩短查询文本，或提高当前模型对应的提示上限。",
         EN: "This geolocation input is too long ({actual}/{maximum} characters) and was stopped before upload. Shorten the query or raise the prompt limit for the selected model.",
     },
     "error.api_context_length": {
-        ZH_CN: "千问拒绝了过长的上下文。SakuGIS 已限制提示长度并逐张发送照片；请缩短查询后重试，或检查当前模型的上下文限制。",
-        EN: "Qwen rejected the request because its context was too long. SakuGIS already bounds prompts and sends photos one at a time; shorten the query or check the selected model's context limit.",
+        ZH_CN: "当前模型拒绝了过长的上下文。SakuGIS 已限制提示长度并逐张发送照片；请缩短查询后重试，或检查当前模型的上下文限制。",
+        EN: "The selected model rejected the request because its context was too long. SakuGIS already bounds prompts and sends photos one at a time; shorten the query or check the selected model's context limit.",
     },
     "error.api_http": {
-        ZH_CN: "千问 API 返回 HTTP {code}。",
-        EN: "The Qwen API returned HTTP {code}.",
+        ZH_CN: "{provider} 接口返回 HTTP {code}。请检查 Base URL、模型名称或服务状态；这不是 Key 未配置提示。",
+        EN: "The {provider} endpoint returned HTTP {code}. Check the Base URL, model name, or service status; this does not mean the key is missing.",
     },
     "error.api_network": {
-        ZH_CN: "无法连接千问 API，请检查网络。",
-        EN: "Cannot connect to the Qwen API. Check the network.",
+        ZH_CN: "无法连接 {provider} 接口。API Key 已配置，但网络、DNS、代理或 Base URL 不可达。",
+        EN: "Cannot connect to the {provider} endpoint. An API key is configured, but the network, DNS, proxy, or Base URL is unreachable.",
     },
-    "error.api_timeout": {ZH_CN: "千问 API 请求超时。", EN: "The Qwen API request timed out."},
+    "error.api_timeout": {
+        ZH_CN: "{provider} API 请求超时。Key 已配置，请检查网络或提高请求超时。",
+        EN: "The {provider} API request timed out. A key is configured; check the network or increase the timeout.",
+    },
     "error.api_response": {
-        ZH_CN: "无法读取千问 API 响应。",
-        EN: "Cannot read the Qwen API response.",
+        ZH_CN: "无法读取 {provider} API 响应。接口已连接，但返回内容不可用。",
+        EN: "Cannot read the {provider} API response. The endpoint connected, but its response is unusable.",
     },
     "error.api_invalid_response": {
-        ZH_CN: "千问 API 响应格式无效。",
-        EN: "The Qwen API response is invalid.",
+        ZH_CN: "{provider} API 响应格式无效。",
+        EN: "The {provider} API response is invalid.",
     },
 }
 

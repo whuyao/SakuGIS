@@ -19,6 +19,7 @@ SakuGIS UI (PyQt)
 │   ├── Agent 2：候选假设 + 真实地点检索 + 空间约束规划
 │   └── Agent 3：GIS 证据约束下的候选核验
 └── Provider adapters
+    ├── Qwen / Kimi K3（可切换的多模态 Agent 模型，Qwen 默认）
     ├── OSM XYZ（地图显示）
     ├── Nominatim Search / Reverse + Overpass（地点解析与空间核验）
     ├── PostGIS（可选的本地 OSM 地名检索与空间核验）
@@ -33,17 +34,19 @@ QGIS Core / GUI
 └── Qt
 ```
 
-Geo Agents 通过后台 `QThread` 调用千问 OpenAI 兼容 API，避免阻塞地图界面。
-三个阶段交换严格 JSON，并使用 dataclass 进行经纬度、分数和证据校验。API
-Key 存放在 macOS 钥匙串，既不进入 QGIS 工程，也不进入应用源码。
+Geo Agents 通过后台 `QThread` 调用可切换的 Qwen 或 Kimi K3 OpenAI 兼容 API，
+避免阻塞地图界面。Qwen 保持默认；用户只需完整配置当前所选提供商。三个阶段
+交换严格 JSON，并使用 dataclass 进行经纬度、分数和证据校验。两个提供商的
+API Key 使用独立的 macOS 钥匙串条目，既不进入 QGIS 工程，也不进入应用源码。
 
 API 调用是无状态的，不保存或重放此前定位的消息。多照片 Case 在 Agent 1
 拆成逐张视觉请求，每个请求仅含一张经缩放的照片；证据随后在本机去重、按
 照片公平取样，再以压缩 JSON 交给 Agent 2/3。三个阶段分别限制为 12k、18k、
 32k 字符，客户端在发送前还有默认 48k 总提示保护；GIS 明细优先保留必需项
 与失败项，完整 GIS 分数和覆盖率始终由本地确定性逻辑计算。
-若服务偶发返回截断或格式不完整的 JSON，客户端只进行一次无历史重试：
-不回传破损内容，把温度降为 0，并将输出预算提高到 4096 token。首次返回
+若服务偶发返回截断或格式不完整的 JSON，客户端只进行一次无历史重试，
+不回传破损内容。Qwen 重试时降低温度；Kimi K3 是强制推理模型，使用独立
+`reasoning_effort` 与更大的输出预留，避免内部推理挤占最终 JSON。首次返回
 有效 JSON 时不会产生额外调用。
 
 Agent 2 先提出带正式检索词的宽候选。`HybridCandidateRetriever` 随后优先

@@ -20,7 +20,7 @@ from sakugis.agent_models import Candidate, RetrievedPlace, clamp
 from sakugis.gis_models import GISCheck, ReversePlace, SpatialConstraint
 
 
-USER_AGENT = "SakuGIS/0.4.0 (+https://urbancomp.net)"
+USER_AGENT = "SakuGIS/0.4.1 (+https://urbancomp.net)"
 DEFAULT_NOMINATIM_URL = "https://nominatim.openstreetmap.org"
 DEFAULT_OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 _TAG_PATTERN = re.compile(r"^[a-zA-Z0-9_:.-]+$")

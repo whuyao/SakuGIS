@@ -249,25 +249,33 @@ class QwenClient:
                 error_body = exc.read(4096).decode("utf-8", errors="ignore")
             except (AttributeError, OSError):
                 pass
-            if exc.code == 401:
-                message = tr("error.api_unauthorized")
+            if exc.code in {401, 403}:
+                message = tr("error.api_unauthorized", provider="Qwen")
             elif exc.code == 429:
-                message = tr("error.api_rate_limit")
+                message = tr("error.api_rate_limit", provider="Qwen")
             elif exc.code in {400, 413, 422} and _is_context_error(
                 error_body
             ):
                 message = tr("error.api_context_length")
             else:
-                message = tr("error.api_http", code=exc.code)
+                message = tr("error.api_http", provider="Qwen", code=exc.code)
             raise QwenApiError(message) from exc
         except urllib.error.URLError as exc:
-            raise QwenApiError(tr("error.api_network")) from exc
+            raise QwenApiError(
+                tr("error.api_network", provider="Qwen")
+            ) from exc
         except TimeoutError as exc:
-            raise QwenApiError(tr("error.api_timeout")) from exc
+            raise QwenApiError(
+                tr("error.api_timeout", provider="Qwen")
+            ) from exc
         except (ValueError, OSError) as exc:
-            raise QwenApiError(tr("error.api_response")) from exc
+            raise QwenApiError(
+                tr("error.api_response", provider="Qwen")
+            ) from exc
         if not isinstance(payload, dict):
-            raise QwenApiError(tr("error.api_invalid_response"))
+            raise QwenApiError(
+                tr("error.api_invalid_response", provider="Qwen")
+            )
         return payload
 
 def _response_text(response: Dict[str, Any]) -> str:

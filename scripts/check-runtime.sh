@@ -84,6 +84,9 @@ if os.environ.get("SAKUGIS_SMOKE_SETTINGS") == "1":
     os.environ.setdefault(
         "SAKUGIS_QWEN_API_KEY", "smoke-test-key-not-a-real-secret"
     )
+    os.environ.setdefault(
+        "SAKUGIS_KIMI_API_KEY", "smoke-test-kimi-key-not-a-real-secret"
+    )
 
 QgsApplication.setPrefixPath(__import__("os").environ["QGIS_PREFIX_PATH"], True)
 app = QgsApplication([], True)
@@ -214,6 +217,8 @@ if smoke_language:
 
 if os.environ.get("SAKUGIS_SMOKE_SETTINGS") == "1":
     from sakugis.candidate_retrieval import HybridCandidateRetriever
+    from sakugis.kimi_client import KimiClient
+    from sakugis.model_provider import KIMI, QWEN, configured_provider
     from sakugis.qwen_client import QwenClient
     from sakugis.settings_dialog import SettingsDialog
 
@@ -226,6 +231,31 @@ if os.environ.get("SAKUGIS_SMOKE_SETTINGS") == "1":
     dialog = SettingsDialog(window)
     dialog.settingsApplied.connect(applied.append)
     dialog.settingsApplied.connect(window._apply_settings)
+    dialog.show()
+    app.processEvents()
+    readable_controls = (
+        dialog.qwen_base_url_edit,
+        dialog.qwen_key_edit,
+        dialog.kimi_base_url_edit,
+        dialog.kimi_key_edit,
+        dialog.brave_key_edit,
+    )
+    if any(control.height() < 36 for control in readable_controls):
+        raise SystemExit("Settings input fields are vertically compressed")
+    if any(
+        status.height() < 34
+        for status in (
+            dialog.qwen_status,
+            dialog.kimi_status,
+            dialog.brave_status,
+        )
+    ):
+        raise SystemExit("Settings status fields are vertically compressed")
+    settings_screenshot = os.environ.get(
+        "SAKUGIS_SMOKE_SETTINGS_SCREENSHOT"
+    )
+    if settings_screenshot and not dialog.grab().save(settings_screenshot):
+        raise SystemExit("Settings screenshot could not be saved")
     dialog.model_combo.setCurrentText("qwen-settings-smoke")
     dialog.temperature_spin.setValue(0.20)
     dialog.qwen_timeout_spin.setValue(91)
@@ -251,7 +281,37 @@ if os.environ.get("SAKUGIS_SMOKE_SETTINGS") == "1":
         QgsSettings().value("sakugis/agents/candidate_limit", "")
     ):
         raise SystemExit("Candidate limit was not persisted")
-    print("Unified settings menu and immediate apply: OK")
+
+    kimi_dialog = SettingsDialog(window)
+    kimi_dialog.settingsApplied.connect(window._apply_settings)
+    kimi_dialog.provider_combo.setCurrentIndex(
+        kimi_dialog.provider_combo.findData(KIMI)
+    )
+    kimi_dialog.kimi_model_edit.setText("kimi-k3")
+    kimi_dialog.kimi_effort_combo.setCurrentIndex(
+        kimi_dialog.kimi_effort_combo.findData("max")
+    )
+    kimi_dialog.kimi_timeout_spin.setValue(241)
+    kimi_dialog._save()
+    app.processEvents()
+    kimi_client = KimiClient(api_key="smoke-test-kimi-key-not-a-real-secret")
+    if configured_provider() != KIMI:
+        raise SystemExit("Kimi provider setting did not apply immediately")
+    if kimi_client.model != "kimi-k3":
+        raise SystemExit("Kimi model setting did not apply immediately")
+    if kimi_client.reasoning_effort != "max" or kimi_client.timeout != 241:
+        raise SystemExit("Kimi reasoning settings did not apply immediately")
+
+    restore_dialog = SettingsDialog(window)
+    restore_dialog.settingsApplied.connect(window._apply_settings)
+    restore_dialog.provider_combo.setCurrentIndex(
+        restore_dialog.provider_combo.findData(QWEN)
+    )
+    restore_dialog._save()
+    app.processEvents()
+    if configured_provider() != QWEN:
+        raise SystemExit("Qwen default provider did not restore")
+    print("Unified Qwen/Kimi settings and immediate apply: OK")
 
 if os.environ.get("SAKUGIS_SMOKE_GOOGLE") == "1":
     window.add_google_satellite()
@@ -405,6 +465,22 @@ if os.environ.get("SAKUGIS_SMOKE_AGENT_RESULT") == "1":
         key=lambda candidate: candidate.ranking_score, reverse=True
     )
     window.agent_panel._show_result(sample_result)
+    preserved_result = window.agent_panel.last_result()
+    window.agent_panel._prepare_new_search()
+    app.processEvents()
+    if window.agent_panel.view_result_button.isHidden():
+        raise SystemExit("View Result action is missing after editing input")
+    if not window.agent_panel.result_splitter.isHidden():
+        raise SystemExit("Result workspace did not yield space to input editor")
+    window.agent_panel._return_to_result()
+    app.processEvents()
+    if not window.agent_panel.view_result_button.isHidden():
+        raise SystemExit("View Result action remained visible on result page")
+    if window.agent_panel.result_splitter.isHidden():
+        raise SystemExit("Preserved result could not be shown again")
+    if window.agent_panel.last_result() is not preserved_result:
+        raise SystemExit("Editing input discarded the previous result")
+    print("Edit Input / View Result round trip: OK")
     window.agent_panel.tabs.setCurrentIndex(2)
     window.show_agent_result(sample_result)
     sample_candidate_layers = [

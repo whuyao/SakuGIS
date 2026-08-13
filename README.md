@@ -2,30 +2,32 @@
 
 [中文说明](README.zh-CN.md) · English
 
-> **Latest release: [Download SakuGIS 0.4.0 for Apple Silicon (.dmg)](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.dmg)**<br>
-> macOS 13 or later · Apple Silicon only · [Release notes](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.0) · [SHA-256](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.sha256.txt)
+> **Latest release: [Download SakuGIS 0.4.1 for Apple Silicon (.dmg)](https://github.com/whuyao/SakuGIS/releases/download/v0.4.1/SakuGIS-0.4.1-Apple-Silicon.dmg)**<br>
+> macOS 13 or later · Apple Silicon only · [Release notes](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.1) · [SHA-256](https://github.com/whuyao/SakuGIS/releases/download/v0.4.1/SakuGIS-0.4.1-Apple-Silicon.sha256.txt)
 
 SakuGIS is an experimental macOS desktop GIS for visual geolocation and
 inspectable spatial verification. It combines QGIS, OpenStreetMap, optional
-PostGIS, and a three-agent Qwen workflow in a bilingual interface.
+PostGIS, and a three-agent multimodal workflow in a bilingual interface. Qwen
+remains the default model provider; Kimi K3 is an optional alternative.
 
 Developed by the [UrbanComp team](https://urbancomp.net).
 
 ## Download
 
-The latest installable build is **SakuGIS 0.4.0 for Apple Silicon**.
+The latest installable build is **SakuGIS 0.4.1 for Apple Silicon**.
 
-[Download the latest DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.dmg)
+[Download the latest DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.4.1/SakuGIS-0.4.1-Apple-Silicon.dmg)
 ·
-[SHA-256](https://github.com/whuyao/SakuGIS/releases/download/v0.4.0/SakuGIS-0.4.0-Apple-Silicon.sha256.txt)
+[SHA-256](https://github.com/whuyao/SakuGIS/releases/download/v0.4.1/SakuGIS-0.4.1-Apple-Silicon.sha256.txt)
 ·
-[Release notes and all assets](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.0)
+[Release notes and all assets](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.1)
 
-Version 0.4.0 introduces replayable `.sgd` projects. A single validated file
-can carry the query, original input photos, structured Agent/GIS results,
-supported local GIS layers and styles, map state, and acquired Place Explorer
-material. Reopening reconstructs the map and analysis without rerunning online
-services. Qwen/Brave keys and PostGIS connection strings are never packaged.
+Version 0.4.1 adds optional Kimi K3 multimodal reasoning while keeping Qwen as
+the default. It also improves the Settings layout in light mode and preserves
+completed analysis when switching between **Edit Input** and **View Result**.
+Replayable `.sgd` projects continue to carry inputs, Agent/GIS results, map
+state, supported local layers, and acquired Place Explorer material. Qwen,
+Kimi, and Brave keys and PostGIS connection strings are never packaged.
 
 The package requires macOS 13 or later and an Apple Silicon Mac. It is about
 1.7 GB because it includes an independent QGIS runtime; a separate QGIS
@@ -62,7 +64,12 @@ Finder and choose **Open**.
   1. extract visual and contextual evidence;
   2. propose hypotheses and resolve them through a real place index;
   3. verify and rerank candidates with GIS evidence.
-- One stateless, low-temperature retry when Qwen returns incomplete JSON.
+- Selectable Qwen or Kimi K3 model providers. Credentials are isolated in
+  provider-specific macOS Keychain entries and Qwen remains the default.
+- Kimi K3 image input with configurable Low, High, or Max reasoning effort;
+  High is recommended for everyday use and Max is available for difficult cases.
+- One stateless retry when a model returns incomplete JSON. K3 receives a
+  larger output reserve because mandatory reasoning consumes output tokens.
 - Real PostGIS/Nominatim name lookup replaces model coordinates with indexed
   OSM place records. If an alias cannot be resolved safely, coordinate-based
   reverse lookup attaches a real OSM identity without moving the queried point.
@@ -173,15 +180,15 @@ If QGIS is installed in a non-default location:
 QGIS_APP=/Applications/QGIS.app ./scripts/run-dev.sh
 ```
 
-## Qwen API configuration
+## Model API configuration
 
-No API key is included in this repository. SakuGIS reads a key from the
-current user's macOS Keychain or from an environment variable. Open
-**Settings → Settings…** to enter or update both the Qwen endpoint and the
-required API key. The endpoint selects the OpenAI-compatible service; the key
-is that service's access credential, and users can edit them independently.
-Starting an Agent analysis opens Settings automatically when the key is
-missing. Saved changes apply without restarting.
+No API key is included in this repository. Qwen remains the default provider,
+while Kimi K3 can be selected under **Settings → Settings…**. Each provider has
+its own editable OpenAI-compatible endpoint, model, API key, and Keychain item.
+Only the selected provider needs to be configured. Kimi additionally exposes
+Low, High, and Max reasoning effort; High is recommended by default. Starting
+an Agent analysis opens Settings automatically when the selected provider's key
+is missing. Saved changes apply without restarting.
 
 Import an Alibaba Cloud Model Studio CSV profile:
 
@@ -200,23 +207,38 @@ SAKUGIS_QWEN_MAX_PROMPT_CHARS=48000 \
 ./scripts/run-dev.sh
 ```
 
+Kimi keys use the separate Keychain service
+`net.urbancomp.sakugis.kimi`. Temporary Kimi configuration is also supported:
+
+```bash
+SAKUGIS_MODEL_PROVIDER=kimi \
+SAKUGIS_KIMI_API_KEY=your-key \
+SAKUGIS_KIMI_BASE_URL=https://api.moonshot.cn/v1 \
+SAKUGIS_KIMI_MODEL=kimi-k3 \
+SAKUGIS_KIMI_REASONING_EFFORT=high \
+./scripts/run-dev.sh
+```
+
 The default base URL is Alibaba Cloud's public Beijing OpenAI-compatible
 endpoint. A workspace-specific endpoint can be provided at runtime through
 `SAKUGIS_QWEN_BASE_URL`; it is intentionally not stored in this repository.
 
-The centralized Settings window keeps the Qwen endpoint and API key together
-on its API Services page. It also manages the model, temperature, request
-timeouts, prompt guard, candidate limit, optional
+The centralized Settings window keeps Qwen, Kimi, and Brave credentials on its
+API Services page. It also manages provider selection, models, Qwen
+temperature, Kimi reasoning effort, request timeouts, prompt guard, candidate limit, optional
 PostGIS DSN, interface language, and light/dark appearance. Non-secret values
 are stored in the current user's QGIS settings; credentials and the DSN are
 stored only in macOS Keychain. New values are read by the next request.
 
-Qwen calls are stateless: each stage sends only one system message and the
+Model calls are stateless: each stage sends only one system message and the
 current Case input, never previous location runs. Agent 1 sends one resized
 photo per request; Agents 2 and 3 receive compact structured JSON. Prompt
 budgets are 12,000 / 18,000 / 32,000 characters by stage, with a final
 48,000-character client guard. The final guard can be adjusted for a
-different model using `SAKUGIS_QWEN_MAX_PROMPT_CHARS`.
+different model using `SAKUGIS_QWEN_MAX_PROMPT_CHARS`. Kimi K3 is a
+thinking-only model, so its adapter does not send Qwen's `enable_thinking`
+parameter and reserves 6,144 output tokens for High or 8,192 for Max before a
+single stateless JSON retry.
 
 Do not commit keys, profile CSV files, PostGIS DSNs, `.env` files, exported
 query data, or private photographs. See [SECURITY.md](SECURITY.md).
