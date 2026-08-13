@@ -6,7 +6,7 @@
 
 This repository must not contain:
 
-- Qwen, DashScope, Alibaba Cloud, Google Maps, or other API keys;
+- Qwen, Kimi, Moonshot, DashScope, Alibaba Cloud, Google Maps, or other API keys;
 - PostGIS connection strings, passwords, or private certificates;
 - `.env` files or cloud profile CSV files;
 - user photographs, exported queries, local GIS datasets, or cached map data;
@@ -34,7 +34,7 @@ reproduction steps, affected versions, and the expected impact.
 
 本仓库禁止包含：
 
-- 千问、DashScope、阿里云、Google Maps 或其他服务的 API Key；
+- 千问、Kimi、Moonshot、DashScope、阿里云、Google Maps 或其他服务的 API Key；
 - PostGIS 连接字符串、数据库密码或私有证书；
 - `.env` 文件或云服务配置 CSV；
 - 用户照片、查询导出、本地 GIS 数据集或地图缓存；

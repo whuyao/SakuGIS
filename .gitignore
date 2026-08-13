@@ -12,6 +12,7 @@ dist/
 *apiKey*.csv
 *apikey*.csv
 *api-key*.csv
+*API*.txt
 secrets*.json
 credentials*.json
 *.pem

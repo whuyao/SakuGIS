@@ -1,4 +1,4 @@
-"""Secure API credential handling for the project-specific Qwen service."""
+"""Secure API credential handling for SakuGIS external services."""
 
 from __future__ import annotations
 
@@ -12,10 +12,15 @@ from typing import Dict
 
 KEYCHAIN_SERVICE = "net.urbancomp.sakugis.qwen"
 KEYCHAIN_ACCOUNT = "UrbanComp"
+KIMI_KEYCHAIN_SERVICE = "net.urbancomp.sakugis.kimi"
 POSTGIS_KEYCHAIN_SERVICE = "net.urbancomp.sakugis.postgis"
 BRAVE_KEYCHAIN_SERVICE = "net.urbancomp.sakugis.brave"
 DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 DEFAULT_MODEL = "qwen3.7-plus"
+DEFAULT_KIMI_BASE_URL = "https://api.moonshot.cn/v1"
+DEFAULT_KIMI_MODEL = "kimi-k3"
+DEFAULT_KIMI_REASONING_EFFORT = "high"
+DEFAULT_KIMI_TIMEOUT = 180
 DEFAULT_QWEN_TEMPERATURE = 0.15
 DEFAULT_QWEN_TIMEOUT = 120
 DEFAULT_MAX_PROMPT_CHARS = 48000
@@ -145,12 +150,69 @@ def has_api_key() -> bool:
         return False
 
 
+def store_kimi_api_key(api_key: str) -> None:
+    """Store the Moonshot/Kimi key in a provider-specific Keychain item."""
+
+    _store_keychain_secret(
+        KIMI_KEYCHAIN_SERVICE,
+        api_key,
+        "Kimi API Key 格式无效。",
+        "Kimi API Key 写入 macOS 钥匙串失败。",
+    )
+
+
+def get_kimi_api_key() -> str:
+    configured = os.environ.get("SAKUGIS_KIMI_API_KEY") or os.environ.get(
+        "MOONSHOT_API_KEY"
+    )
+    if configured:
+        return configured.strip()
+    key = _get_keychain_secret(KIMI_KEYCHAIN_SERVICE)
+    if not key:
+        raise CredentialError("尚未配置 Kimi API Key。")
+    return key
+
+
+def has_kimi_api_key() -> bool:
+    try:
+        return bool(get_kimi_api_key())
+    except CredentialError:
+        return False
+
+
 def configured_base_url() -> str:
     return os.environ.get("SAKUGIS_QWEN_BASE_URL", DEFAULT_BASE_URL).rstrip("/")
 
 
 def configured_model() -> str:
     return os.environ.get("SAKUGIS_QWEN_MODEL", DEFAULT_MODEL).strip()
+
+
+def configured_kimi_base_url() -> str:
+    return os.environ.get(
+        "SAKUGIS_KIMI_BASE_URL", DEFAULT_KIMI_BASE_URL
+    ).rstrip("/")
+
+
+def configured_kimi_model() -> str:
+    return os.environ.get("SAKUGIS_KIMI_MODEL", DEFAULT_KIMI_MODEL).strip()
+
+
+def configured_kimi_reasoning_effort() -> str:
+    effort = os.environ.get(
+        "SAKUGIS_KIMI_REASONING_EFFORT", DEFAULT_KIMI_REASONING_EFFORT
+    ).strip().lower()
+    return (
+        effort
+        if effort in {"low", "high", "max"}
+        else DEFAULT_KIMI_REASONING_EFFORT
+    )
+
+
+def configured_kimi_timeout() -> int:
+    return _configured_int(
+        "SAKUGIS_KIMI_TIMEOUT", DEFAULT_KIMI_TIMEOUT, 30, 600
+    )
 
 
 def configured_qwen_temperature() -> float:
@@ -213,6 +275,62 @@ def _configured_int(
     except ValueError:
         value = default
     return max(minimum, min(maximum, value))
+
+
+def _store_keychain_secret(
+    service: str,
+    secret: str,
+    invalid_message: str,
+    failure_message: str,
+) -> None:
+    value = secret.strip()
+    if len(value) < 20 or "\n" in value or "\r" in value:
+        raise CredentialError(invalid_message)
+    try:
+        result = subprocess.run(
+            [
+                "/usr/bin/security",
+                "add-generic-password",
+                "-U",
+                "-a",
+                KEYCHAIN_ACCOUNT,
+                "-s",
+                service,
+                "-w",
+                value,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise CredentialError("无法访问 macOS 钥匙串。") from exc
+    if result.returncode != 0:
+        raise CredentialError(failure_message)
+
+
+def _get_keychain_secret(service: str) -> str:
+    try:
+        result = subprocess.run(
+            [
+                "/usr/bin/security",
+                "find-generic-password",
+                "-a",
+                KEYCHAIN_ACCOUNT,
+                "-s",
+                service,
+                "-w",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise CredentialError("无法访问 macOS 钥匙串。") from exc
+    return result.stdout.strip() if result.returncode == 0 else ""
 
 
 def store_postgis_dsn(dsn: str) -> None:

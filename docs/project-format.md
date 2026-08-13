@@ -47,7 +47,7 @@ report/report.md
 The same records contain the query, original photos, structured outputs from
 all three Agents, deterministic GIS verification, map state, supported local
 data and QML styles, plus a human-readable report. Replaying a project is a
-local deterministic operation and does not invoke Qwen, Brave, Nominatim,
+local deterministic operation and does not invoke Qwen, Kimi, Brave, Nominatim,
 Overpass, or PostGIS.
 
 ## Loading and integrity
@@ -64,12 +64,12 @@ payload. Writers use an adjacent temporary file and atomic replacement.
 
 ## Privacy and portability
 
-以下内容永远不写入 `.sgd`：Qwen API Key、Brave API Key、PostGIS DSN、钥匙串
+以下内容永远不写入 `.sgd`：Qwen/Kimi API Key、Brave API Key、PostGIS DSN、钥匙串
 项目、环境变量和用户设置。数据库、网络服务或其他远程图层不会保存连接字符串；
 它们会被列入警告并跳过。OSM 与 Google XYZ 只保存 SakuGIS 内置底图 ID，瓦片
 不会离线打包。这样既避免泄露密钥，也避免产生不受控的巨大工程文件和影像缓存。
 
-Qwen and Brave keys, PostGIS DSNs, Keychain items, environment variables and
+Qwen, Kimi and Brave keys, PostGIS DSNs, Keychain items, environment variables and
 user settings are never stored. Database and arbitrary remote layer connection
 strings are omitted. Built-in OSM and Google XYZ layers store only a controlled
 provider ID; tiles are not cached in the project.

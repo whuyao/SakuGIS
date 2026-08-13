@@ -1,4 +1,4 @@
-"""Three-stage Qwen-assisted geolocation pipeline."""
+"""Three-stage multimodal-model-assisted geolocation pipeline."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ from sakugis.prompt_budget import (
     compact_text_list,
     shorten_text,
 )
-from sakugis.qwen_client import QwenClient
+from sakugis.model_provider import create_model_client
 from sakugis.ranking import fuse_candidate_score, select_diverse_candidates
 from sakugis.spatial_constraints import plan_spatial_constraints
 
@@ -132,11 +132,11 @@ evidence_score 只衡量照片和查询证据对该候选的支持程度，不�
 class GeoAgentPipeline:
     def __init__(
         self,
-        client: Optional[QwenClient] = None,
+        client: Optional[Any] = None,
         gis_verifier: Optional[GISVerifier] = None,
         candidate_retriever: Optional[HybridCandidateRetriever] = None,
     ):
-        self.client = client or QwenClient()
+        self.client = client or create_model_client()
         self.gis_verifier = gis_verifier or GISVerifier()
         self.candidate_retriever = candidate_retriever or (
             HybridCandidateRetriever(
@@ -323,7 +323,9 @@ class GeoAgentPipeline:
                 verification_payload.get("caveat")
                 or "结果已通过 OSM/PostGIS 核验，但尚未经过独立地理验证集校准。"
             ),
-            model=self.client.model,
+            model=getattr(
+                self.client, "model_description", self.client.model
+            ),
             image_paths=paths,
             case_mode=case_mode,
             gis_backend=gis_backend,

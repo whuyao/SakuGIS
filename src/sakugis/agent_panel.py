@@ -29,13 +29,14 @@ from qgis.PyQt.QtWidgets import (
 )
 
 from sakugis.agent_models import MAX_CASE_PHOTOS, Candidate, GeoAnalysisResult
-from sakugis.credentials import (
-    configured_model,
-    has_api_key,
-    has_brave_api_key,
-)
+from sakugis.credentials import has_brave_api_key
 from sakugis.geo_agents import GeoAgentPipeline
 from sakugis.i18n import tr
+from sakugis.model_provider import (
+    configured_active_model,
+    has_active_api_key,
+    provider_display_name,
+)
 from sakugis.postgis_provider import PostGISConfig
 
 
@@ -243,8 +244,13 @@ class AgentPanel(QWidget):
         self.new_search_button.setObjectName("GhostButton")
         self.new_search_button.setVisible(False)
         self.new_search_button.clicked.connect(self._prepare_new_search)
+        self.view_result_button = QPushButton(tr("agent.view_result"), self)
+        self.view_result_button.setObjectName("PrimaryButton")
+        self.view_result_button.setVisible(False)
+        self.view_result_button.clicked.connect(self._return_to_result)
         result_actions = QHBoxLayout()
         result_actions.addWidget(self.new_search_button)
+        result_actions.addWidget(self.view_result_button)
         result_actions.addStretch(1)
         result_actions.addWidget(self.export_button)
 
@@ -294,6 +300,7 @@ class AgentPanel(QWidget):
         self.run_button.setText(tr("agent.run"))
         self.export_button.setText(tr("agent.export"))
         self.new_search_button.setText(tr("agent.new_search"))
+        self.view_result_button.setText(tr("agent.view_result"))
         self.evidence_tree.setHeaderLabels(
             [
                 tr("agent.evidence"),
@@ -376,6 +383,8 @@ class AgentPanel(QWidget):
             self.photo_group.show()
             self.query_group.show()
             self.new_search_button.hide()
+            self.view_result_button.hide()
+            self.result_splitter.show()
             return
         self.progress_bar.setValue(100)
         self.progress_label.setText(tr("agent.complete"))
@@ -386,7 +395,21 @@ class AgentPanel(QWidget):
         self.photo_group.show()
         self.query_group.show()
         self.new_search_button.hide()
+        self.view_result_button.setVisible(self._last_result is not None)
+        if self._last_result is not None:
+            self.result_splitter.hide()
         self.focus_query()
+
+    def _return_to_result(self) -> None:
+        """Return to the preserved result without rerunning the analysis."""
+
+        if self._last_result is None:
+            return
+        self.photo_group.hide()
+        self.query_group.hide()
+        self.result_splitter.show()
+        self.view_result_button.hide()
+        self.new_search_button.show()
 
     def _set_step_state(self, percent: int) -> None:
         if percent >= 100:
@@ -517,9 +540,13 @@ class AgentPanel(QWidget):
             self.sessionChanged.emit()
 
     def _refresh_key_status(self) -> None:
-        if has_api_key():
+        if has_active_api_key():
             self.api_status.setText(
-                tr("agent.key_ready", model=configured_model())
+                tr(
+                    "agent.key_ready",
+                    provider=provider_display_name(),
+                    model=configured_active_model(),
+                )
             )
             self.api_status.setObjectName("StatusGood")
         else:
@@ -557,8 +584,8 @@ class AgentPanel(QWidget):
                 self, tr("agent.input_needed"), tr("agent.input_needed_detail")
             )
             return
-        if not has_api_key():
-            self.settingsRequested.emit("qwen")
+        if not has_active_api_key():
+            self.settingsRequested.emit("model")
             return
 
         self.analysisStarted.emit()
@@ -570,6 +597,8 @@ class AgentPanel(QWidget):
         self.photo_group.show()
         self.query_group.show()
         self.new_search_button.hide()
+        self.view_result_button.hide()
+        self.result_splitter.show()
         self.export_button.setEnabled(False)
         self.progress_bar.setValue(1)
         self.progress_label.setText(tr("agent.starting"))
@@ -607,6 +636,8 @@ class AgentPanel(QWidget):
         self.photo_group.hide()
         self.query_group.hide()
         self.new_search_button.show()
+        self.view_result_button.hide()
+        self.result_splitter.show()
         self._show_result(result)
         self.analysisCompleted.emit(result)
 
@@ -636,6 +667,8 @@ class AgentPanel(QWidget):
         self.photo_group.hide()
         self.query_group.hide()
         self.new_search_button.show()
+        self.view_result_button.hide()
+        self.result_splitter.show()
         self.result_splitter.setSizes([250, 125])
         for evidence in result.evidence:
             item = QTreeWidgetItem(
