@@ -47,6 +47,7 @@ from qgis.core import (
     QgsRasterLayer,
     QgsRectangle,
     QgsVectorLayer,
+    QgsWkbTypes,
     QgsSettings,
 )
 from qgis.gui import (
@@ -59,8 +60,16 @@ from qgis.gui import (
 from sakugis.basemaps import GOOGLE_SATELLITE, OSM, available_google_satellite
 from sakugis.agent_models import Candidate, GeoAnalysisResult
 from sakugis.agent_panel import AgentPanel
-from sakugis.i18n import EN, ZH_CN, get_language, set_language, tr
+from sakugis.i18n import (
+    EN,
+    ZH_CN,
+    apply_qgis_translation,
+    get_language,
+    set_language,
+    tr,
+)
 from sakugis.layer_panel import LayerPanel
+from sakugis.map_export import MapExportDialog, export_map_layout
 from sakugis.map_defaults import choose_startup_city
 from sakugis.place_details_panel import PlaceDetailsPanel
 from sakugis.project_archive import (
@@ -85,6 +94,7 @@ from sakugis.update_checker import (
     UpdateStatus,
     fetch_update_status,
 )
+from sakugis.vector_tools import AttributeTableDialog, create_layer_style_dialog
 from sakugis import __version__
 
 
@@ -183,8 +193,15 @@ class MainWindow(QMainWindow):
         self.layer_panel = LayerPanel(self)
         self.layer_panel.removeRequested.connect(self.remove_selected_layers)
         self.layer_panel.zoomRequested.connect(self.zoom_to_current_layer)
+        self.layer_panel.styleRequested.connect(self.open_layer_style)
+        self.layer_panel.attributeTableRequested.connect(
+            self.open_attribute_table
+        )
         self.layer_panel.candidateLayerActivated.connect(
             self._zoom_to_candidate_layer
+        )
+        self.layer_panel.view.currentLayerChanged.connect(
+            self._update_vector_actions
         )
 
         self.layer_dock = QDockWidget(tr("dock.layers"), self)
@@ -316,6 +333,11 @@ class MainWindow(QMainWindow):
         self.export_report_action.setShortcut(QKeySequence("Ctrl+Shift+E"))
         self.export_report_action.setEnabled(False)
         self.export_report_action.triggered.connect(self.export_report)
+        self.export_map_action = QAction(
+            glyph_icon("▣"), tr("action.export_map"), self
+        )
+        self.export_map_action.setShortcut(QKeySequence("Ctrl+Shift+P"))
+        self.export_map_action.triggered.connect(self.export_map)
 
         self.add_osm_action = QAction(tr("action.add_osm"), self)
         self.add_osm_action.triggered.connect(self.add_osm_basemap)
@@ -347,6 +369,14 @@ class MainWindow(QMainWindow):
 
         self.remove_layer_action = QAction(tr("action.remove_layers"), self)
         self.remove_layer_action.triggered.connect(self.remove_selected_layers)
+        self.layer_style_action = QAction(tr("action.layer_style"), self)
+        self.layer_style_action.setEnabled(False)
+        self.layer_style_action.triggered.connect(self.open_layer_style)
+        self.attribute_table_action = QAction(
+            tr("action.attribute_table"), self
+        )
+        self.attribute_table_action.setEnabled(False)
+        self.attribute_table_action.triggered.connect(self.open_attribute_table)
 
         self.about_action = QAction(tr("action.about"), self)
         self.about_action.triggered.connect(self.show_about)
@@ -414,6 +444,7 @@ class MainWindow(QMainWindow):
         self.file_menu.addAction(self.save_project_action)
         self.file_menu.addAction(self.save_project_as_action)
         self.file_menu.addSeparator()
+        self.file_menu.addAction(self.export_map_action)
         self.file_menu.addAction(self.export_report_action)
         self.file_menu.addSeparator()
         self.file_menu.addAction(self.exit_action)
@@ -429,6 +460,9 @@ class MainWindow(QMainWindow):
         self.layer_menu = self.menuBar().addMenu(tr("menu.layer"))
         self.layer_menu.addAction(self.add_osm_action)
         self.layer_menu.addAction(self.add_google_satellite_action)
+        self.layer_menu.addSeparator()
+        self.layer_menu.addAction(self.layer_style_action)
+        self.layer_menu.addAction(self.attribute_table_action)
         self.layer_menu.addSeparator()
         self.layer_menu.addAction(self.remove_layer_action)
 
@@ -463,6 +497,7 @@ class MainWindow(QMainWindow):
         self.main_toolbar.addAction(self.add_osm_action)
         self.main_toolbar.addAction(self.add_google_satellite_action)
         self.main_toolbar.addSeparator()
+        self.main_toolbar.addAction(self.export_map_action)
         self.main_toolbar.addAction(self.export_report_action)
         self.addToolBar(self.main_toolbar)
 
@@ -481,6 +516,7 @@ class MainWindow(QMainWindow):
 
     def _set_language(self, language: str) -> None:
         set_language(language)
+        apply_qgis_translation(QApplication.instance())
         QgsSettings().setValue("sakugis/ui/language", get_language())
         self.retranslate_ui()
 
@@ -517,6 +553,7 @@ class MainWindow(QMainWindow):
         self.open_data_action.setIcon(glyph_icon("↗"))
         self.save_project_action.setIcon(glyph_icon("↓"))
         self.export_report_action.setIcon(glyph_icon("⇩"))
+        self.export_map_action.setIcon(glyph_icon("▣"))
         self.add_google_satellite_action.setIcon(glyph_icon("◉"))
         self.pan_action.setIcon(glyph_icon("✥"))
         self.zoom_in_action.setIcon(glyph_icon("+"))
@@ -529,6 +566,7 @@ class MainWindow(QMainWindow):
         self.save_project_action.setText(tr("action.save_project"))
         self.save_project_as_action.setText(tr("action.save_as"))
         self.export_report_action.setText(tr("action.export_report"))
+        self.export_map_action.setText(tr("action.export_map"))
         self.add_osm_action.setText(tr("action.add_osm"))
         self.add_google_satellite_action.setText(
             tr("action.add_google_satellite")
@@ -539,6 +577,8 @@ class MainWindow(QMainWindow):
         self.full_extent_action.setText(tr("action.full_extent"))
         self.initial_extent_action.setText(tr("action.initial_extent"))
         self.remove_layer_action.setText(tr("action.remove_layers"))
+        self.layer_style_action.setText(tr("action.layer_style"))
+        self.attribute_table_action.setText(tr("action.attribute_table"))
         self.about_action.setText(tr("action.about"))
         self.show_welcome_action.setText(tr("action.show_welcome"))
         self.exit_action.setText(tr("action.exit"))
@@ -1324,6 +1364,119 @@ class MainWindow(QMainWindow):
         for layer in layers:
             self.project.removeMapLayer(layer.id())
         self._refresh_attribution()
+
+    def _update_vector_actions(self, layer=None) -> None:
+        if not hasattr(self, "layer_style_action"):
+            return
+        is_vector = isinstance(layer, QgsVectorLayer)
+        styleable = is_vector and layer.geometryType() in {
+            QgsWkbTypes.PointGeometry,
+            QgsWkbTypes.LineGeometry,
+            QgsWkbTypes.PolygonGeometry,
+        }
+        self.layer_style_action.setEnabled(styleable)
+        self.attribute_table_action.setEnabled(is_vector)
+
+    def open_layer_style(self, layer=None) -> None:
+        if not isinstance(layer, QgsVectorLayer):
+            layer = self.layer_panel.current_layer()
+        if not isinstance(layer, QgsVectorLayer):
+            QMessageBox.information(
+                self,
+                tr("style.vector_required_title"),
+                tr("style.vector_required"),
+            )
+            return
+        if layer.geometryType() not in {
+            QgsWkbTypes.PointGeometry,
+            QgsWkbTypes.LineGeometry,
+            QgsWkbTypes.PolygonGeometry,
+        }:
+            QMessageBox.information(
+                self,
+                tr("style.vector_required_title"),
+                tr("style.geometry_required"),
+            )
+            return
+        renderer = layer.renderer()
+        renderer_before = renderer.dump() if renderer is not None else ""
+        dialog = create_layer_style_dialog(layer, self.canvas, self)
+        accepted = bool(dialog.exec_())
+        renderer = layer.renderer()
+        renderer_after = renderer.dump() if renderer is not None else ""
+        if not accepted and renderer_before == renderer_after:
+            return
+
+        node = self.project.layerTreeRoot().findLayer(layer.id())
+        if node is not None:
+            self.layer_panel.model.refreshLayerLegend(node)
+        self.project.setDirty(True)
+        self._mark_sgd_dirty()
+        layer.triggerRepaint()
+        self.canvas.refresh()
+        self.statusBar().showMessage(
+            tr("status.layer_style_applied", name=layer.name()), 4000
+        )
+
+    def open_attribute_table(self, layer=None) -> None:
+        if not isinstance(layer, QgsVectorLayer):
+            layer = self.layer_panel.current_layer()
+        if not isinstance(layer, QgsVectorLayer):
+            QMessageBox.information(
+                self,
+                tr("attribute.vector_required_title"),
+                tr("attribute.vector_required"),
+            )
+            return
+        AttributeTableDialog(layer, self.canvas, self).exec_()
+
+    def export_map(self, checked: bool = False) -> bool:
+        if not self.canvas.layers():
+            QMessageBox.information(
+                self,
+                tr("map_export.empty_title"),
+                tr("map_export.empty"),
+            )
+            return False
+        project_title = Path(
+            self._sgd_path or self.project.fileName() or ""
+        ).stem
+        dialog = MapExportDialog(project_title or tr("map_export.default_title"), self)
+        if not dialog.exec_():
+            return False
+        options = dialog.options()
+        if options.file_format == "pdf":
+            file_filter = tr("map_export.pdf_filter")
+            suffix = ".pdf"
+        else:
+            file_filter = tr("map_export.png_filter")
+            suffix = ".png"
+        safe_title = re.sub(r"[^\w.-]+", "-", options.title).strip("-.")
+        suggested = Path.home() / f"{safe_title or 'SakuGIS-map'}{suffix}"
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            tr("map_export.save_title"),
+            str(suggested),
+            file_filter,
+        )
+        if not path:
+            return False
+        try:
+            destination, google_excluded = export_map_layout(
+                self.project, self.canvas, path, options
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            QMessageBox.critical(
+                self,
+                tr("map_export.failed_title"),
+                tr("map_export.failed", error=str(exc)),
+            )
+            return False
+        detail = tr("status.map_exported", path=str(destination))
+        if google_excluded:
+            detail += " · " + tr("map_export.google_excluded")
+        self.statusBar().showMessage(detail, 8000)
+        return True
 
     def zoom_to_current_layer(self) -> None:
         layer = self.layer_panel.current_layer()

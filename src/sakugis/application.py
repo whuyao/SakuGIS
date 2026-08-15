@@ -117,10 +117,11 @@ def run() -> int:
 
     settings = QgsSettings()
     from sakugis.app_settings import load_runtime_settings
-    from sakugis.i18n import set_language
+    from sakugis.i18n import apply_qgis_translation, set_language
 
     load_runtime_settings(settings)
     set_language(str(settings.value("sakugis/ui/language", "zh_CN")))
+    apply_qgis_translation(app)
     from sakugis.ui_theme import apply_theme, normalize_theme
 
     apply_theme(
@@ -129,7 +130,7 @@ def run() -> int:
     )
     settings.setValue(
         "qgis/networkAndProxy/userAgent",
-        "SakuGIS/0.4.1 (+https://urbancomp.net)",
+        "SakuGIS/0.5.0 (+https://urbancomp.net)",
     )
 
     _install_exception_hook()

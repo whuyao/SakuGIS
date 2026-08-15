@@ -10,6 +10,7 @@ ZH_CN = "zh_CN"
 EN = "en"
 SUPPORTED_LANGUAGES = (ZH_CN, EN)
 _language = ZH_CN
+_qgis_translator = None
 
 
 TRANSLATIONS: Dict[str, Dict[str, str]] = {
@@ -34,6 +35,12 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         ZH_CN: "导出定位报告…",
         EN: "Export Geolocation Report…",
     },
+    "action.export_map": {ZH_CN: "出图…", EN: "Export Map…"},
+    "action.layer_style": {
+        ZH_CN: "QGIS 符号系统…",
+        EN: "QGIS Symbology…",
+    },
+    "action.attribute_table": {ZH_CN: "打开属性表", EN: "Open Attribute Table"},
     "action.show_welcome": {
         ZH_CN: "显示开始引导",
         EN: "Show Getting Started",
@@ -399,6 +406,14 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "status.scale": {ZH_CN: "比例尺 1:{scale}", EN: "Scale 1:{scale}"},
     "status.scale_empty": {ZH_CN: "比例尺 —", EN: "Scale —"},
     "status.project_saved": {ZH_CN: "工程已保存", EN: "Project saved"},
+    "status.layer_style_applied": {
+        ZH_CN: "图层“{name}”配色已更新",
+        EN: "Updated styling for layer “{name}”",
+    },
+    "status.map_exported": {
+        ZH_CN: "地图已导出：{path}",
+        EN: "Map exported: {path}",
+    },
     "status.project_loaded": {
         ZH_CN: "SakuGIS 工程已加载，可在地图和 Agent 面板中复盘",
         EN: "SakuGIS project loaded and ready for map and Agent replay",
@@ -518,8 +533,8 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     },
     "about.title": {ZH_CN: "关于 SakuGIS", EN: "About SakuGIS"},
     "about.body": {
-        ZH_CN: "<h3>SakuGIS 0.4.1</h3><p>一款基于 QGIS 的轻量 macOS 桌面 GIS。</p><p>开发团队：<a href=\"https://urbancomp.net\">UrbanComp</a>。</p><p>许可证：GNU GPL v2 或更高版本。</p>",
-        EN: "<h3>SakuGIS 0.4.1</h3><p>A lightweight macOS desktop GIS powered by QGIS.</p><p>Developed by the <a href=\"https://urbancomp.net\">UrbanComp team</a>.</p><p>License: GNU GPL v2 or later.</p>",
+        ZH_CN: "<h3>SakuGIS 0.5.0</h3><p>一款基于 QGIS 的轻量 macOS 桌面 GIS。</p><p>开发团队：<a href=\"https://urbancomp.net\">UrbanComp</a>。</p><p>许可证：GNU GPL v2 或更高版本。</p>",
+        EN: "<h3>SakuGIS 0.5.0</h3><p>A lightweight macOS desktop GIS powered by QGIS.</p><p>Developed by the <a href=\"https://urbancomp.net\">UrbanComp team</a>.</p><p>License: GNU GPL v2 or later.</p>",
     },
     "update.check_button": {ZH_CN: "检查更新…", EN: "Check for Updates…"},
     "update.close_button": {ZH_CN: "关闭", EN: "Close"},
@@ -564,8 +579,158 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     },
     "layer.remove": {ZH_CN: "移除", EN: "Remove"},
     "layer.zoom": {ZH_CN: "缩放至图层", EN: "Zoom to Layer"},
+    "layer.style": {ZH_CN: "符号系统", EN: "Symbology"},
+    "layer.attribute_table": {ZH_CN: "属性表", EN: "Attributes"},
     "layer.rename": {ZH_CN: "重命名", EN: "Rename"},
     "layer.remove_menu": {ZH_CN: "移除图层", EN: "Remove Layer"},
+    "attribute.title": {
+        ZH_CN: "属性表 — {name}",
+        EN: "Attribute Table — {name}",
+    },
+    "attribute.fid": {ZH_CN: "要素 ID", EN: "Feature ID"},
+    "attribute.null": {ZH_CN: "空值", EN: "NULL"},
+    "attribute.search_hint": {
+        ZH_CN: "搜索全部属性…",
+        EN: "Search all attributes…",
+    },
+    "attribute.count": {
+        ZH_CN: "显示 {shown} / {total} 个要素",
+        EN: "Showing {shown} / {total} features",
+    },
+    "attribute.count_limited": {
+        ZH_CN: "大图层性能保护：显示前 {shown} / {total} 个要素",
+        EN: "Large-layer safety limit: showing first {shown} / {total} features",
+    },
+    "attribute.zoom_selected": {ZH_CN: "缩放至所选", EN: "Zoom to Selection"},
+    "attribute.close": {ZH_CN: "关闭", EN: "Close"},
+    "attribute.no_selection_title": {ZH_CN: "尚未选择", EN: "No Selection"},
+    "attribute.no_selection": {
+        ZH_CN: "请先在属性表中选择一个或多个要素。",
+        EN: "Select one or more feature rows first.",
+    },
+    "attribute.vector_required_title": {
+        ZH_CN: "需要矢量图层",
+        EN: "Vector Layer Required",
+    },
+    "attribute.vector_required": {
+        ZH_CN: "请选择一个矢量图层后再打开属性表。",
+        EN: "Select a vector layer before opening its attribute table.",
+    },
+    "style.title": {
+        ZH_CN: "QGIS 图层符号系统 — {name}",
+        EN: "QGIS Layer Symbology — {name}",
+    },
+    "style.mode": {ZH_CN: "配色方式", EN: "Style mode"},
+    "style.single": {ZH_CN: "单一颜色", EN: "Single color"},
+    "style.categorized": {ZH_CN: "按属性分类", EN: "Categorized by attribute"},
+    "style.field": {ZH_CN: "分类属性", EN: "Attribute field"},
+    "style.point_color": {ZH_CN: "点颜色", EN: "Point color"},
+    "style.line_color": {ZH_CN: "线颜色", EN: "Line color"},
+    "style.fill_color": {ZH_CN: "面填充色", EN: "Fill color"},
+    "style.outline_color": {ZH_CN: "轮廓颜色", EN: "Outline color"},
+    "style.point_size": {ZH_CN: "点大小（mm）", EN: "Point size (mm)"},
+    "style.line_width": {ZH_CN: "线宽（mm）", EN: "Line width (mm)"},
+    "style.outline_width": {ZH_CN: "轮廓线宽（mm）", EN: "Outline width (mm)"},
+    "style.choose_color": {ZH_CN: "选择颜色", EN: "Choose Color"},
+    "style.category_note": {
+        ZH_CN: "分类配色按所选属性的唯一值生成稳定色带，单个字段最多支持 {limit} 类。",
+        EN: "Categorized styling creates a stable palette from unique values, up to {limit} classes per field.",
+    },
+    "style.ok": {ZH_CN: "应用并关闭", EN: "Apply and Close"},
+    "style.native_ok": {ZH_CN: "确定", EN: "OK"},
+    "style.apply": {ZH_CN: "应用", EN: "Apply"},
+    "style.cancel": {ZH_CN: "取消", EN: "Cancel"},
+    "style.invalid_title": {ZH_CN: "无法分类配色", EN: "Cannot Categorize"},
+    "style.no_field": {
+        ZH_CN: "该图层没有可用于分类配色的属性字段。",
+        EN: "This layer has no field available for categorized styling.",
+    },
+    "style.too_many_title": {ZH_CN: "类别过多", EN: "Too Many Categories"},
+    "style.too_many": {
+        ZH_CN: "所选属性超过 {limit} 个唯一值。请选择类别更少的属性。",
+        EN: "The selected field has more than {limit} unique values. Choose a field with fewer classes.",
+    },
+    "style.vector_required_title": {
+        ZH_CN: "需要点、线或面图层",
+        EN: "Point, Line, or Polygon Layer Required",
+    },
+    "style.vector_required": {
+        ZH_CN: "请选择一个矢量图层后再设置配色。",
+        EN: "Select a vector layer before changing its style.",
+    },
+    "style.geometry_required": {
+        ZH_CN: "当前图层不包含可配色的点、线或面几何。",
+        EN: "The current layer has no styleable point, line, or polygon geometry.",
+    },
+    "style.renderer.single": {ZH_CN: "单一符号", EN: "Single Symbol"},
+    "style.renderer.categorized": {ZH_CN: "分类", EN: "Categorized"},
+    "style.renderer.graduated": {ZH_CN: "分级", EN: "Graduated"},
+    "style.renderer.rule_based": {ZH_CN: "基于规则", EN: "Rule-based"},
+    "style.renderer.point_displacement": {
+        ZH_CN: "点位移",
+        EN: "Point Displacement",
+    },
+    "style.renderer.point_cluster": {ZH_CN: "点聚类", EN: "Point Cluster"},
+    "style.renderer.heatmap": {ZH_CN: "热力图", EN: "Heatmap"},
+    "style.renderer.inverted": {ZH_CN: "反转多边形", EN: "Inverted Polygons"},
+    "style.renderer.merged": {ZH_CN: "合并要素", EN: "Merged Features"},
+    "style.renderer.embedded": {ZH_CN: "嵌入符号", EN: "Embedded Symbols"},
+    "style.renderer.none": {ZH_CN: "无符号", EN: "No Symbols"},
+    "map_export.title": {ZH_CN: "地图出图", EN: "Export Map"},
+    "map_export.map_title": {ZH_CN: "地图标题", EN: "Map title"},
+    "map_export.subtitle": {ZH_CN: "副标题", EN: "Subtitle"},
+    "map_export.creator": {ZH_CN: "制图人", EN: "Created by"},
+    "map_export.format": {ZH_CN: "输出格式", EN: "Output format"},
+    "map_export.resolution": {ZH_CN: "分辨率", EN: "Resolution"},
+    "map_export.default_title": {ZH_CN: "SakuGIS 地图", EN: "SakuGIS Map"},
+    "map_export.default_subtitle": {
+        ZH_CN: "当前地图范围",
+        EN: "Current map extent",
+    },
+    "map_export.note": {
+        ZH_CN: "生成 A4 横向专业版面，包含标题栏、图例、指北针、比例尺和制图元数据。Google XYZ 影像仅用于交互显示，不会写入导出文件。",
+        EN: "Creates a professional A4 landscape composition with title block, legend, north arrow, scale bar, and map metadata. Google XYZ imagery is interactive-only and is excluded from exports.",
+    },
+    "map_export.continue": {ZH_CN: "选择保存位置", EN: "Choose Destination"},
+    "map_export.cancel": {ZH_CN: "取消", EN: "Cancel"},
+    "map_export.save_title": {ZH_CN: "保存地图", EN: "Save Map"},
+    "map_export.pdf_filter": {ZH_CN: "PDF 地图 (*.pdf)", EN: "PDF Map (*.pdf)"},
+    "map_export.png_filter": {ZH_CN: "PNG 地图 (*.png)", EN: "PNG Map (*.png)"},
+    "map_export.legend": {ZH_CN: "图例", EN: "Legend"},
+    "map_export.layer_count": {ZH_CN: "{count} 个图层", EN: "{count} layers"},
+    "map_export.created_by": {ZH_CN: "制图", EN: "Created by"},
+    "map_export.printed_at": {ZH_CN: "出图时间", EN: "Printed at"},
+    "map_export.scale": {ZH_CN: "比例", EN: "Scale"},
+    "map_export.version": {ZH_CN: "版本", EN: "Version"},
+    "map_export.sheet": {ZH_CN: "图幅", EN: "Sheet"},
+    "map_export.source": {ZH_CN: "数据", EN: "Source"},
+    "map_export.layers": {ZH_CN: "图层", EN: "Layers"},
+    "map_export.footer": {
+        ZH_CN: "由 SakuGIS / UrbanComp 生成",
+        EN: "Created with SakuGIS / UrbanComp",
+    },
+    "map_export.empty_title": {ZH_CN: "没有可出图内容", EN: "Nothing to Export"},
+    "map_export.empty": {
+        ZH_CN: "请先添加至少一个地图图层。",
+        EN: "Add at least one map layer before exporting.",
+    },
+    "map_export.no_exportable_layers": {
+        ZH_CN: "除仅限交互显示的 Google 影像外，没有其他可出图图层。",
+        EN: "No exportable layers remain after excluding interactive-only Google imagery.",
+    },
+    "map_export.failed_title": {ZH_CN: "出图失败", EN: "Map Export Failed"},
+    "map_export.failed": {
+        ZH_CN: "无法生成地图：\n{error}",
+        EN: "Could not export the map:\n{error}",
+    },
+    "map_export.export_failed_code": {
+        ZH_CN: "QGIS 出图器返回错误代码 {code}",
+        EN: "QGIS layout exporter returned error code {code}",
+    },
+    "map_export.google_excluded": {
+        ZH_CN: "Google 影像已按使用策略排除",
+        EN: "Google imagery was excluded by usage policy",
+    },
     "agent.photo": {ZH_CN: "Case 照片", EN: "Case Photos"},
     "agent.photo_optional": {
         ZH_CN: "可选：添加同一地点的照片",
@@ -1015,6 +1180,38 @@ def normalize_language(value: str) -> str:
 def set_language(value: str) -> None:
     global _language
     _language = normalize_language(value)
+
+
+def apply_qgis_translation(app=None) -> bool:
+    """Keep native QGIS dialogs aligned with SakuGIS' runtime language."""
+
+    global _qgis_translator
+    try:
+        from pathlib import Path
+
+        from qgis.PyQt.QtCore import QCoreApplication, QTranslator
+        from qgis.core import QgsApplication
+    except ImportError:
+        return False
+
+    application = app or QCoreApplication.instance()
+    if application is None:
+        return False
+    if _qgis_translator is not None:
+        application.removeTranslator(_qgis_translator)
+        _qgis_translator = None
+    if get_language() == EN:
+        return True
+
+    translation_path = (
+        Path(QgsApplication.pkgDataPath()) / "i18n" / "qgis_zh-Hans.qm"
+    )
+    translator = QTranslator(application)
+    if not translation_path.is_file() or not translator.load(str(translation_path)):
+        return False
+    application.installTranslator(translator)
+    _qgis_translator = translator
+    return True
 
 
 def get_language() -> str:
