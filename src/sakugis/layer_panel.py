@@ -12,7 +12,7 @@ from qgis.PyQt.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from qgis.core import QgsLayerTreeModel, QgsProject
+from qgis.core import QgsLayerTreeModel, QgsProject, QgsVectorLayer, QgsWkbTypes
 from qgis.gui import QgsLayerTreeView
 from sakugis.i18n import tr
 
@@ -20,6 +20,8 @@ from sakugis.i18n import tr
 class LayerPanel(QWidget):
     removeRequested = pyqtSignal()
     zoomRequested = pyqtSignal()
+    styleRequested = pyqtSignal(object)
+    attributeTableRequested = pyqtSignal(object)
     candidateLayerActivated = pyqtSignal(object)
 
     def __init__(self, parent=None):
@@ -63,10 +65,19 @@ class LayerPanel(QWidget):
         self.zoom_button = QPushButton(tr("layer.zoom"), self)
         self.zoom_button.setObjectName("PrimaryButton")
         self.zoom_button.clicked.connect(self.zoomRequested)
+        self.style_button = QPushButton(tr("layer.style"), self)
+        self.style_button.clicked.connect(self._request_style)
+        self.style_button.setEnabled(False)
+        self.attribute_button = QPushButton(tr("layer.attribute_table"), self)
+        self.attribute_button.clicked.connect(self._request_attribute_table)
+        self.attribute_button.setEnabled(False)
 
         button_layout = QHBoxLayout()
         button_layout.addWidget(self.zoom_button)
         button_layout.addWidget(self.remove_button)
+        vector_button_layout = QHBoxLayout()
+        vector_button_layout.addWidget(self.style_button)
+        vector_button_layout.addWidget(self.attribute_button)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -78,12 +89,15 @@ class LayerPanel(QWidget):
         layout.addWidget(self.hint_label)
         layout.addWidget(self.opacity_label)
         layout.addWidget(self.opacity_slider)
+        layout.addLayout(vector_button_layout)
         layout.addLayout(button_layout)
         self.refresh_summary(len(QgsProject.instance().mapLayers()))
 
     def retranslate_ui(self) -> None:
         self.remove_button.setText(tr("layer.remove"))
         self.zoom_button.setText(tr("layer.zoom"))
+        self.style_button.setText(tr("layer.style"))
+        self.attribute_button.setText(tr("layer.attribute_table"))
         self.eyebrow_label.setText(tr("layer.eyebrow"))
         self.title_label.setText(tr("layer.workspace"))
         self.hint_label.setText(tr("layer.hint"))
@@ -115,11 +129,21 @@ class LayerPanel(QWidget):
             self.opacity_slider.setValue(100)
             self.opacity_slider.setEnabled(False)
             self.opacity_label.setText(tr("layer.opacity", value=100))
+            self.style_button.setEnabled(False)
+            self.attribute_button.setEnabled(False)
         else:
             opacity = round(self._layer_opacity(layer) * 100)
             self.opacity_slider.setValue(opacity)
             self.opacity_slider.setEnabled(True)
             self.opacity_label.setText(tr("layer.opacity", value=opacity))
+            is_vector = isinstance(layer, QgsVectorLayer)
+            styleable = is_vector and layer.geometryType() in {
+                QgsWkbTypes.PointGeometry,
+                QgsWkbTypes.LineGeometry,
+                QgsWkbTypes.PolygonGeometry,
+            }
+            self.style_button.setEnabled(styleable)
+            self.attribute_button.setEnabled(is_vector)
             if layer.customProperty("sakugis/candidate-layer"):
                 self.candidateLayerActivated.emit(layer)
         self.opacity_slider.blockSignals(False)
@@ -139,6 +163,16 @@ class LayerPanel(QWidget):
         layer.triggerRepaint()
         self.opacity_label.setText(tr("layer.opacity", value=value))
 
+    def _request_style(self) -> None:
+        layer = self.current_layer()
+        if isinstance(layer, QgsVectorLayer):
+            self.styleRequested.emit(layer)
+
+    def _request_attribute_table(self) -> None:
+        layer = self.current_layer()
+        if isinstance(layer, QgsVectorLayer):
+            self.attributeTableRequested.emit(layer)
+
     def _show_context_menu(self, position) -> None:
         index = self.view.indexAt(position)
         if not index.isValid():
@@ -147,6 +181,15 @@ class LayerPanel(QWidget):
 
         menu = QMenu(self)
         menu.addAction(tr("layer.zoom"), self.zoomRequested.emit)
+        layer = self.current_layer()
+        if isinstance(layer, QgsVectorLayer):
+            menu.addAction(tr("layer.attribute_table"), self._request_attribute_table)
+            if layer.geometryType() in {
+                QgsWkbTypes.PointGeometry,
+                QgsWkbTypes.LineGeometry,
+                QgsWkbTypes.PolygonGeometry,
+            }:
+                menu.addAction(tr("layer.style"), self._request_style)
         menu.addSeparator()
         menu.addAction(tr("layer.rename"), lambda: self.view.edit(index))
         menu.addAction(tr("layer.remove_menu"), self.removeRequested.emit)

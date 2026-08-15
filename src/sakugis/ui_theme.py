@@ -136,7 +136,7 @@ QGroupBox::title {
     padding: 0 5px;
     color: #AFC2D1;
 }
-QLineEdit, QTextEdit, QTextBrowser, QListView, QListWidget, QTreeView, QTreeWidget {
+QLineEdit, QTextEdit, QTextBrowser, QListView, QListWidget, QTreeView, QTreeWidget, QTableView {
     background: #091522;
     alternate-background-color: #0D1B2A;
     color: #E8F1F8;
@@ -145,7 +145,7 @@ QLineEdit, QTextEdit, QTextBrowser, QListView, QListWidget, QTreeView, QTreeWidg
     padding: 6px;
 }
 QLineEdit:focus, QTextEdit:focus, QListView:focus, QListWidget:focus,
-QTreeView:focus, QTreeWidget:focus {
+QTreeView:focus, QTreeWidget:focus, QTableView:focus {
     border: 1px solid #42D7F5;
 }
 QLineEdit[readOnly="true"] {
@@ -169,6 +169,16 @@ QTreeView::item:hover, QTreeWidget::item:hover {
     background: #152A40;
 }
 QTreeView::item:selected, QTreeWidget::item:selected {
+    background: #1A6379;
+    color: #FFFFFF;
+}
+QTableView::item {
+    padding: 5px 6px;
+}
+QTableView::item:hover {
+    background: #152A40;
+}
+QTableView::item:selected {
     background: #1A6379;
     color: #FFFFFF;
 }

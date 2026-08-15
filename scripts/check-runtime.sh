@@ -325,6 +325,178 @@ if os.environ.get("SAKUGIS_SMOKE_GOOGLE") == "1":
     if not google_layers:
         raise SystemExit(1)
 
+if os.environ.get("SAKUGIS_SMOKE_GIS_TOOLS") == "1":
+    from pathlib import Path
+    import shutil
+    from tempfile import TemporaryDirectory
+
+    from qgis.PyQt.QtCore import QVariant
+    from qgis.PyQt.QtGui import QColor
+    from qgis.core import (
+        QgsCategorizedSymbolRenderer,
+        QgsFeature,
+        QgsField,
+        QgsGradientColorRamp,
+        QgsGeometry,
+        QgsGraduatedSymbolRenderer,
+        QgsRectangle,
+        QgsRendererCategory,
+        QgsSingleSymbolRenderer,
+        QgsSymbol,
+        QgsVectorLayer,
+    )
+    from qgis.gui import QgsRendererPropertiesDialog
+    from sakugis.map_export import MapExportOptions, export_map_layout
+    from sakugis.vector_tools import (
+        AttributeTableDialog,
+        FeatureTableModel,
+        create_layer_style_dialog,
+    )
+    from sakugis.i18n import apply_qgis_translation
+
+    window.project.clear()
+    geometry_cases = (
+        ("Point", ("POINT (0 0)", "POINT (1 1)")),
+        ("LineString", ("LINESTRING (0 0, 1 1)", "LINESTRING (0 1, 1 2)")),
+        ("Polygon", (
+            "POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))",
+            "POLYGON ((1 1, 2 1, 2 2, 1 2, 1 1))",
+        )),
+    )
+    smoke_layers = []
+    for geometry_name, wkts in geometry_cases:
+        layer = QgsVectorLayer(
+            f"{geometry_name}?crs=EPSG:4326",
+            f"Smoke {geometry_name}",
+            "memory",
+        )
+        provider = layer.dataProvider()
+        provider.addAttributes(
+            [QgsField("class", QVariant.String), QgsField("value", QVariant.Int)]
+        )
+        layer.updateFields()
+        features = []
+        for index, wkt in enumerate(wkts):
+            feature = QgsFeature(layer.fields())
+            feature.setAttributes(["A" if index == 0 else "B", index + 1])
+            feature.setGeometry(QgsGeometry.fromWkt(wkt))
+            features.append(feature)
+        if not provider.addFeatures(features):
+            raise SystemExit(f"Could not create {geometry_name} smoke layer")
+        layer.updateExtents()
+        window.project.addMapLayer(layer)
+        smoke_layers.append(layer)
+
+        base_symbol = QgsSymbol.defaultSymbol(layer.geometryType())
+        base_symbol.setColor(QColor("#42ADD4"))
+        layer.setRenderer(QgsSingleSymbolRenderer(base_symbol.clone()))
+        if layer.renderer().type() != "singleSymbol":
+            raise SystemExit(f"Single style failed for {geometry_name}")
+        second_symbol = base_symbol.clone()
+        second_symbol.setColor(QColor("#DD3F72"))
+        layer.setRenderer(
+            QgsCategorizedSymbolRenderer(
+                "class",
+                [
+                    QgsRendererCategory("A", base_symbol, "A"),
+                    QgsRendererCategory("B", second_symbol, "B"),
+                ],
+            )
+        )
+        renderer = layer.renderer()
+        if renderer.type() != "categorizedSymbol" or len(renderer.categories()) != 2:
+            raise SystemExit(f"Categorized renderer is invalid for {geometry_name}")
+
+    point_layer = smoke_layers[0]
+    graduated = QgsGraduatedSymbolRenderer.createRenderer(
+        point_layer,
+        "value",
+        5,
+        QgsGraduatedSymbolRenderer.EqualInterval,
+        QgsSymbol.defaultSymbol(point_layer.geometryType()),
+        QgsGradientColorRamp(QColor("#440154"), QColor("#FDE725")),
+    )
+    point_layer.setRenderer(graduated)
+    if point_layer.renderer().type() != "graduatedSymbol":
+        raise SystemExit("Continuous numeric graduated renderer was not applied")
+    if len(point_layer.renderer().ranges()) != 5:
+        raise SystemExit("Continuous numeric renderer did not create five classes")
+
+    apply_qgis_translation(app)
+    style_dialog = create_layer_style_dialog(point_layer, window.canvas, window)
+    if not isinstance(style_dialog, QgsRendererPropertiesDialog):
+        raise SystemExit("Layer styling did not use QGIS' native dialog")
+    if style_dialog.minimumWidth() < 820 or style_dialog.minimumHeight() < 580:
+        raise SystemExit("Native QGIS styling dialog is too compressed")
+    style_screenshot = os.environ.get("SAKUGIS_SMOKE_GIS_STYLE_SCREENSHOT")
+    if style_screenshot:
+        style_dialog.show()
+        app.processEvents()
+        if not style_dialog.grab().save(style_screenshot):
+            raise SystemExit("Layer style screenshot could not be saved")
+    style_dialog.reject()
+    app.processEvents()
+
+    window.layer_panel.view.setCurrentLayer(point_layer)
+    app.processEvents()
+    if not window.layer_panel.style_button.isEnabled():
+        raise SystemExit("Layer Style button is disabled for a point layer")
+    if not window.layer_panel.attribute_button.isEnabled():
+        raise SystemExit("Attribute Table button is disabled for a point layer")
+    if not window.layer_style_action.isEnabled():
+        raise SystemExit("Layer Style menu action is disabled for a point layer")
+    if not window.attribute_table_action.isEnabled():
+        raise SystemExit("Attribute Table menu action is disabled for a point layer")
+    table_model = FeatureTableModel(point_layer)
+    if table_model.rowCount() != 2 or table_model.columnCount() != 3:
+        raise SystemExit("Attribute table did not expose fields and rows")
+    attribute_dialog = AttributeTableDialog(point_layer, window.canvas, window)
+    attribute_screenshot = os.environ.get(
+        "SAKUGIS_SMOKE_GIS_ATTRIBUTE_SCREENSHOT"
+    )
+    if attribute_screenshot:
+        attribute_dialog.show()
+        app.processEvents()
+        if not attribute_dialog.grab().save(attribute_screenshot):
+            raise SystemExit("Attribute table screenshot could not be saved")
+    attribute_dialog.table.selectRow(0)
+    app.processEvents()
+    if len(point_layer.selectedFeatureIds()) != 1:
+        raise SystemExit("Attribute table selection did not reach the layer")
+    attribute_dialog.hide()
+
+    window.canvas.setDestinationCrs(point_layer.crs())
+    window.canvas.setExtent(QgsRectangle(-0.25, -0.25, 2.25, 2.25))
+    window.canvas.refresh()
+    app.processEvents()
+    with TemporaryDirectory(prefix="sakugis-map-export-") as export_root:
+        export_root = Path(export_root)
+        retained_export_root = os.environ.get("SAKUGIS_SMOKE_GIS_EXPORT_DIR")
+        for file_format in ("png", "pdf"):
+            destination, google_excluded = export_map_layout(
+                window.project,
+                window.canvas,
+                str(export_root / f"smoke-map.{file_format}"),
+                MapExportOptions(
+                    title="SakuGIS GIS Tools Smoke",
+                    subtitle="Point / line / polygon",
+                    creator="SakuGIS Smoke",
+                    file_format=file_format,
+                    dpi=96,
+                ),
+            )
+            if google_excluded or not destination.is_file():
+                raise SystemExit(f"{file_format.upper()} map export failed")
+            if destination.stat().st_size < 1000:
+                raise SystemExit(f"{file_format.upper()} map export is empty")
+            if retained_export_root:
+                retained_path = Path(retained_export_root)
+                retained_path.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(destination, retained_path / destination.name)
+    print("QGIS native single/categorized/graduated styling: OK")
+    print("Attribute table display and map selection: OK")
+    print("A4 PNG/PDF map composition export: OK")
+
 if os.environ.get("SAKUGIS_SMOKE_AGENT_RESULT") == "1":
     from sakugis.agent_models import Candidate, Evidence, GeoAnalysisResult
     from sakugis.gis_models import GISCheck, SpatialConstraint

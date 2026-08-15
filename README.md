@@ -2,8 +2,8 @@
 
 [中文说明](README.zh-CN.md) · English
 
-> **Latest release: [Download SakuGIS 0.4.1 for Apple Silicon (.dmg)](https://github.com/whuyao/SakuGIS/releases/download/v0.4.1/SakuGIS-0.4.1-Apple-Silicon.dmg)**<br>
-> macOS 13 or later · Apple Silicon only · [Release notes](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.1) · [SHA-256](https://github.com/whuyao/SakuGIS/releases/download/v0.4.1/SakuGIS-0.4.1-Apple-Silicon.sha256.txt)
+> **Latest release: [Download SakuGIS 0.5.0 for Apple Silicon (.dmg)](https://github.com/whuyao/SakuGIS/releases/download/v0.5.0/SakuGIS-0.5.0-Apple-Silicon.dmg)**<br>
+> macOS 13 or later · Apple Silicon only · [Release notes](https://github.com/whuyao/SakuGIS/releases/tag/v0.5.0) · [SHA-256](https://github.com/whuyao/SakuGIS/releases/download/v0.5.0/SakuGIS-0.5.0-Apple-Silicon.sha256.txt)
 
 SakuGIS is an experimental macOS desktop GIS for visual geolocation and
 inspectable spatial verification. It combines QGIS, OpenStreetMap, optional
@@ -14,20 +14,21 @@ Developed by the [UrbanComp team](https://urbancomp.net).
 
 ## Download
 
-The latest installable build is **SakuGIS 0.4.1 for Apple Silicon**.
+The latest installable build is **SakuGIS 0.5.0 for Apple Silicon**.
 
-[Download the latest DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.4.1/SakuGIS-0.4.1-Apple-Silicon.dmg)
+[Download the latest DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.5.0/SakuGIS-0.5.0-Apple-Silicon.dmg)
 ·
-[SHA-256](https://github.com/whuyao/SakuGIS/releases/download/v0.4.1/SakuGIS-0.4.1-Apple-Silicon.sha256.txt)
+[SHA-256](https://github.com/whuyao/SakuGIS/releases/download/v0.5.0/SakuGIS-0.5.0-Apple-Silicon.sha256.txt)
 ·
-[Release notes and all assets](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.1)
+[Release notes and all assets](https://github.com/whuyao/SakuGIS/releases/tag/v0.5.0)
 
-Version 0.4.1 adds optional Kimi K3 multimodal reasoning while keeping Qwen as
-the default. It also improves the Settings layout in light mode and preserves
-completed analysis when switching between **Edit Input** and **View Result**.
-Replayable `.sgd` projects continue to carry inputs, Agent/GIS results, map
-state, supported local layers, and acquired Place Explorer material. Qwen,
-Kimi, and Brave keys and PostGIS connection strings are never packaged.
+Version 0.5.0 turns imported vector data into a practical cartography workflow.
+It adds QGIS-native symbology for single, categorized, graduated continuous,
+and rule-based rendering; searchable attribute tables with map selection; and
+professional A4 PDF/PNG output with a title block, legend, north arrow, scale
+bar, and production metadata. Native renderers remain replayable in `.sgd`
+projects. Qwen, Kimi, and Brave keys and PostGIS connection strings are never
+packaged.
 
 The package requires macOS 13 or later and an Apple Silicon Mac. It is about
 1.7 GB because it includes an independent QGIS runtime; a separate QGIS
@@ -51,6 +52,15 @@ Finder and choose **Open**.
 - OpenStreetMap plus replaceable XYZ imagery layers.
 - Local GeoJSON, GeoPackage, Shapefile, KML, GeoTIFF, and common GIS formats.
 - Layer visibility, ordering, renaming, opacity, and candidate navigation.
+- QGIS' native vector symbology editor for point, line, and polygon layers:
+  single, categorized, graduated continuous values, rule-based renderers,
+  color ramps, symbol layers, transparency, and data-defined properties.
+- Native QGIS renderers and legend entries persist in `.sgd` projects.
+- Searchable vector attribute tables with row selection linked back to map
+  feature selection and zoom-to-selection.
+- Professional A4 landscape map export to PDF or PNG with title block, legend,
+  north arrow, scale bar, creator, print time, scale, version, sheet number, and
+  source summary. Interactive-only Google XYZ imagery is excluded from exports.
 - Chinese and English runtime UI.
 - Persistent light and dark appearance modes.
 - **About SakuGIS** can check GitHub Releases for updates and open either the
