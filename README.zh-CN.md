@@ -2,8 +2,8 @@
 
 中文说明 · [English](README.md)
 
-> **最新版本：[下载 SakuGIS 0.4.1 Apple Silicon 安装包（.dmg）](https://github.com/whuyao/SakuGIS/releases/download/v0.4.1/SakuGIS-0.4.1-Apple-Silicon.dmg)**<br>
-> macOS 13 或更高版本 · 仅支持 Apple Silicon · [版本说明](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.1) · [SHA-256 校验](https://github.com/whuyao/SakuGIS/releases/download/v0.4.1/SakuGIS-0.4.1-Apple-Silicon.sha256.txt)
+> **最新版本：[下载 SakuGIS 0.5.1 Apple Silicon 安装包（.dmg）](https://github.com/whuyao/SakuGIS/releases/download/v0.5.1/SakuGIS-0.5.1-Apple-Silicon.dmg)**<br>
+> macOS 13 或更高版本 · 仅支持 Apple Silicon · [版本说明](https://github.com/whuyao/SakuGIS/releases/tag/v0.5.1) · [SHA-256 校验](https://github.com/whuyao/SakuGIS/releases/download/v0.5.1/SakuGIS-0.5.1-Apple-Silicon.sha256.txt)
 
 SakuGIS 是一款面向 macOS 的轻量桌面 GIS 应用。当前版本以 QGIS LTR
 作为 GIS 内核，提供在线底图、本地 GIS 数据加载、图层管理、地图漫游和
@@ -11,21 +11,26 @@ SakuGIS 是一款面向 macOS 的轻量桌面 GIS 应用。当前版本以 QGIS 
 
 ## 下载
 
-当前最新可安装版本为 **SakuGIS 0.4.1 Apple Silicon 版**。
+当前最新可安装版本为 **SakuGIS 0.5.1 Apple Silicon 版**。
 
-[下载最新版 DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.4.1/SakuGIS-0.4.1-Apple-Silicon.dmg)
+[下载最新版 DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.5.1/SakuGIS-0.5.1-Apple-Silicon.dmg)
 ·
-[SHA-256 校验文件](https://github.com/whuyao/SakuGIS/releases/download/v0.4.1/SakuGIS-0.4.1-Apple-Silicon.sha256.txt)
+[SHA-256 校验文件](https://github.com/whuyao/SakuGIS/releases/download/v0.5.1/SakuGIS-0.5.1-Apple-Silicon.sha256.txt)
 ·
-[版本说明、注意事项与全部附件](https://github.com/whuyao/SakuGIS/releases/tag/v0.4.1)
+[版本说明、注意事项与全部附件](https://github.com/whuyao/SakuGIS/releases/tag/v0.5.1)
 
-0.4.1 新增可选的 Kimi K3 多模态推理，并继续以通义千问作为默认模型；同时
-改善浅色模式设置窗口的输入框、状态栏和滚动布局。“修改输入”后可随时点击
-“查看结果”返回既有分析，不会重新调用模型或清除地图图层。`.sgd` 仍可完整
-复盘输入、Agent/GIS 结果、地图状态、本地 GIS 数据及已取得的网络资料；
-Qwen/Kimi/Brave Key 与 PostGIS 连接信息不会进入工程包。
+0.5.1 将默认千问模型升级到最新的多模态 `qwen3.8-max`，并在设置中加入
+`qwen3.8-flash` 选项；旧模型和自定义兼容模型仍可选择。文本结构化输出与图片
+识别均已通过真实 Token Plan 接口验证。0.5.0 引入的 QGIS 原生符号系统、属性表、
+PDF/PNG 专业出图和 `.sgd` 工程复盘能力继续保留。Qwen/Kimi/Brave Key 与 PostGIS
+连接信息不会进入 App、DMG、工程包或 Git 仓库。
 
-安装包支持 macOS 13 或更高版本，仅支持 Apple Silicon。DMG 约 1.7 GB，
+当前 0.5.1 安装包同时修复了 macOS Retina 与浅色/深色主题下图层显隐勾选框
+可能透明或显示异常的问题，并保留 QGIS 原生图层树的展开、拖动、重命名和点击
+显隐行为。发布回归覆盖 69 项核心测试，以及设置即时生效、OSM/Google 图层、
+Agent 结果联动、`.sgd` 保存复盘、点线面渲染、属性表和 A4 PDF/PNG 出图。
+
+安装包支持 macOS 13 或更高版本，仅支持 Apple Silicon。DMG 约 1.5 GB，
 已包含独立 QGIS 运行时，无需另行安装 QGIS。当前测试包采用 ad-hoc 签名且
 尚未经过 Apple 公证；首次启动时可能需要在 Finder 中右键 SakuGIS 并选择
 “打开”。
@@ -35,7 +40,14 @@ Qwen/Kimi/Brave Key 与 PostGIS 连接信息不会进入工程包。
 - OpenStreetMap 在线底图
 - 可叠加的 Google 遥感影像自定义 XYZ 底图
 - 鼠标拖动、滚轮缩放、放大、缩小和全图显示
-- 图层显示、隐藏、拖动排序、重命名和透明度调整
+- 清晰可靠的图层显隐勾选框，以及拖动排序、重命名和透明度调整
+- 点、线、面直接使用 QGIS 原生符号系统：支持单一符号、分类、连续数值分级、
+  规则渲染、色带、多符号层、透明度和数据定义属性
+- QGIS 原生渲染器、色带和图例可随 `.sgd` 工程保存与恢复
+- 可搜索的矢量属性表；表格行选择与地图要素选择联动，并支持缩放至所选
+- 专业 A4 横向地图出图：导出 PDF 或 PNG，包含标题栏、图例、指北针、
+  比例尺、制图人、出图时间、比例、版本、图幅和数据摘要；仅限交互显示的
+  Google XYZ 影像不会进入导出文件
 - 打开 GeoJSON、GeoPackage、Shapefile、KML 和 GeoTIFF 等常见数据
 - 默认打开和保存单文件 `.sgd` 复盘工程：打包查询文本、原始输入照片、
   三 Agent 结构化结果、GIS 核验过程、候选评分、地图视图、本地 GIS 数据
@@ -169,7 +181,9 @@ QGIS_APP=/Applications/QGIS.app ./scripts/run-dev.sh
 
 ## 模型 API
 
-SakuGIS 默认仍使用通义千问 `qwen3.7-plus`，不会自动切换已有用户的模型。
+SakuGIS 默认使用通义千问 `qwen3.8-max`，支持文本、图片与深度推理，适合
+多模态地理定位和候选地点核验；设置中仍可选择 `qwen3.8-flash`、
+`qwen3.7-plus` 或手动填写其他兼容模型。
 “设置 → 设置…”新增 Kimi K3 可选提供商；用户可以使用 Qwen 或 Kimi，只有
 当前所选提供商需要配置完整。两者分别保存接口地址、模型和 API Key，互不
 覆盖。Kimi 还可设置 Low / High / Max 推理强度，日常建议 High。未配置当前
@@ -187,7 +201,7 @@ Key 会保存到当前用户的 macOS 钥匙串，服务名为
 ```bash
 SAKUGIS_QWEN_API_KEY=... \
 SAKUGIS_QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1 \
-SAKUGIS_QWEN_MODEL=qwen3.7-plus \
+SAKUGIS_QWEN_MODEL=qwen3.8-max \
 SAKUGIS_QWEN_MAX_PROMPT_CHARS=48000 \
 ./scripts/run-dev.sh
 ```

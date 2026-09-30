@@ -263,6 +263,8 @@ class SettingsDialog(QDialog):
         self.model_combo.setEditable(True)
         self.model_combo.addItems(
             [
+                "qwen3.8-max",
+                "qwen3.8-flash",
                 "qwen3.7-plus",
                 "qwen3-vl-plus",
                 "qwen-vl-max",

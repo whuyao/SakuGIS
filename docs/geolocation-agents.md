@@ -213,7 +213,7 @@ Agent 3 的 `evidence_score` 明确排除 GIS，避免同一 GIS 结果先进入
 
 - 已完成 Agent 面板、照片与查询输入、macOS 本地元数据读取；
 - 已完成最多 6 张同地点照片的 Case 输入、跨照片证据归因与联合候选评分；
-- 已完成基于 Qwen `qwen3.7-plus` 或 Kimi `kimi-k3` 的三个顺序 Agent，Qwen 默认；
+- 已完成基于 Qwen `qwen3.8-max` 或 Kimi `kimi-k3` 的三个顺序 Agent，Qwen 默认；
 - 已完成结构化证据表、候选点/范围 QGIS 图层和双击定位；
 - 已完成 API Key 的 macOS 钥匙串存储；
 - 已完成 OSM Nominatim 地点反查和有界、缓存的 Overpass 标签约束；

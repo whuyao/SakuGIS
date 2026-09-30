@@ -4,7 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-VERSION="0.4.1"
+VERSION="0.5.1"
 QGIS_APP=""
 OUTPUT_DIR="$PROJECT_DIR/dist"
 SIGN_IDENTITY="-"
@@ -112,6 +112,7 @@ rm -rf "$CONTENTS_DIR/Resources/sakugis"
 mkdir -p "$CONTENTS_DIR/Resources/sakugis"
 ditto --norsrc "$PROJECT_DIR/src" "$CONTENTS_DIR/Resources/sakugis"
 
+rm -rf "$CONTENTS_DIR/Resources/sakugis-source"
 mkdir -p "$CONTENTS_DIR/Resources/sakugis-source"
 ditto --norsrc "$PROJECT_DIR/src" "$CONTENTS_DIR/Resources/sakugis-source/src"
 cp -X "$PROJECT_DIR/README.md" "$CONTENTS_DIR/Resources/sakugis-source/README.md"
@@ -142,6 +143,7 @@ if [[ "$APP_ONLY" == true ]]; then
   echo "输出独立应用…"
   rm -rf "$FINAL_APP_PATH"
   mv "$APP_PATH" "$FINAL_APP_PATH"
+  xattr -crs "$FINAL_APP_PATH"
   codesign --verify --deep --strict "$FINAL_APP_PATH"
   echo "完成：$FINAL_APP_PATH"
   exit 0
@@ -151,12 +153,25 @@ echo "创建 DMG…"
 ditto --norsrc "$APP_PATH" "$DMG_STAGE/SakuGIS.app"
 ln -s /Applications "$DMG_STAGE/Applications"
 rm -f "$DMG_PATH"
-hdiutil create \
+if ! hdiutil create \
   -volname "SakuGIS $VERSION" \
   -srcfolder "$DMG_STAGE" \
   -ov \
   -format UDZO \
-  "$DMG_PATH"
+  "$DMG_PATH"; then
+  echo "标准磁盘映像服务不可用，改用 HFS 混合映像后压缩…"
+  RAW_DMG_PATH="$BUILD_DIR/SakuGIS-$VERSION-uncompressed.dmg"
+  hdiutil makehybrid \
+    -o "$RAW_DMG_PATH" \
+    -hfs \
+    -hfs-volume-name "SakuGIS $VERSION" \
+    "$DMG_STAGE"
+  rm -f "$DMG_PATH"
+  hdiutil convert \
+    "$RAW_DMG_PATH" \
+    -format UDZO \
+    -o "$DMG_PATH"
+fi
 
 (
   cd "$OUTPUT_DIR"

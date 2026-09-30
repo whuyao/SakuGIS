@@ -34,6 +34,16 @@ QGIS Core / GUI
 └── Qt
 ```
 
+基础矢量制图集中在 `vector_tools.py`：点、线、面符号编辑直接嵌入 QGIS 原生
+`QgsRendererPropertiesDialog`，因此具备单一、分类、连续数值分级、规则、色带和数据定义
+等完整渲染能力；属性表提供搜索、要素选择和缩放联动。QGIS 渲染器作为 QML 样式
+随 `.sgd` 工程保存。`map_export.py` 从当前画布 CRS、
+范围、可见图层顺序和渲染器状态创建临时 A4 `QgsPrintLayout`，导出 PDF 或
+PNG，不修改当前工程。Google XYZ 继续遵守仅可视化策略，出图前会从版面图层
+集合中排除。A4 版面结构参考专业 QGIS 标题栏惯例，包含制图人、出图时间、
+比例、版本与图幅元数据；设计参考：[Whanganui District Council QGIS Layout
+Templates](https://github.com/Whanganui-District-Council/qgis_layout_templates)。
+
 Geo Agents 通过后台 `QThread` 调用可切换的 Qwen 或 Kimi K3 OpenAI 兼容 API，
 避免阻塞地图界面。Qwen 保持默认；用户只需完整配置当前所选提供商。三个阶段
 交换严格 JSON，并使用 dataclass 进行经纬度、分数和证据校验。两个提供商的
