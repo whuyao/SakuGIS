@@ -2,19 +2,101 @@
 
 from __future__ import annotations
 
-from qgis.PyQt.QtCore import Qt, pyqtSignal
+from qgis.PyQt.QtCore import QRect, Qt, pyqtSignal
+from qgis.PyQt.QtGui import QColor, QPainter, QPainterPath, QPen
 from qgis.PyQt.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMenu,
+    QProxyStyle,
     QPushButton,
     QSlider,
+    QStyle,
     QVBoxLayout,
     QWidget,
 )
 from qgis.core import QgsLayerTreeModel, QgsProject, QgsVectorLayer, QgsWkbTypes
 from qgis.gui import QgsLayerTreeView
 from sakugis.i18n import tr
+from sakugis.ui_theme import theme_colors
+
+
+class LayerTreeStyle(QProxyStyle):
+    """Paint layer visibility controls consistently on macOS and Retina displays.
+
+    QGIS keeps its own layer-tree delegate and all native input handling.  This
+    proxy only replaces the unreliable checkbox primitive, which Qt's stylesheet
+    engine can leave transparent when a layer row is selected.
+    """
+
+    INDICATOR_SIZE = 17
+
+    def drawPrimitive(self, element, option, painter, widget=None) -> None:
+        if element != QStyle.PE_IndicatorItemViewItemCheck:
+            super().drawPrimitive(element, option, painter, widget)
+            return
+
+        size = min(self.INDICATOR_SIZE, max(12, option.rect.height() - 2))
+        indicator = QRect(
+            option.rect.center().x() - size // 2,
+            option.rect.center().y() - size // 2,
+            size,
+            size,
+        )
+        colors = theme_colors()
+        checked = bool(option.state & QStyle.State_On)
+        partially_checked = bool(option.state & QStyle.State_NoChange)
+
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setPen(
+            QPen(
+                QColor(
+                    colors["cyan"]
+                    if checked or partially_checked
+                    else colors["muted"]
+                ),
+                1.4,
+            )
+        )
+        painter.setBrush(
+            QColor(
+                colors["cyan"]
+                if checked or partially_checked
+                else colors["surface"]
+            )
+        )
+        painter.drawRoundedRect(indicator, 3.5, 3.5)
+
+        painter.setPen(
+            QPen(
+                QColor("#FFFFFF" if checked or partially_checked else colors["text"]),
+                2.0,
+                Qt.SolidLine,
+                Qt.RoundCap,
+                Qt.RoundJoin,
+            )
+        )
+        if checked:
+            path = QPainterPath()
+            path.moveTo(indicator.left() + size * 0.24, indicator.center().y())
+            path.lineTo(
+                indicator.left() + size * 0.43,
+                indicator.bottom() - size * 0.24,
+            )
+            path.lineTo(
+                indicator.right() - size * 0.20,
+                indicator.top() + size * 0.25,
+            )
+            painter.drawPath(path)
+        elif partially_checked:
+            painter.drawLine(
+                indicator.left() + size * 0.25,
+                indicator.center().y(),
+                indicator.right() - size * 0.25,
+                indicator.center().y(),
+            )
+        painter.restore()
 
 
 class LayerPanel(QWidget):
@@ -45,6 +127,9 @@ class LayerPanel(QWidget):
         self.model.setFlag(QgsLayerTreeModel.AllowNodeChangeVisibility)
         self.model.setFlag(QgsLayerTreeModel.ShowLegend)
         self.view.setModel(self.model)
+        self.visibility_style = LayerTreeStyle()
+        self.visibility_style.setParent(self.view)
+        self.view.setStyle(self.visibility_style)
         self.view.setHeaderHidden(True)
         self.view.setTextElideMode(Qt.ElideRight)
         self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)

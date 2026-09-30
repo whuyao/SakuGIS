@@ -22,7 +22,7 @@ export PYTHONDONTWRITEBYTECODE=1
 export QT_PLUGIN_PATH="$CONTENTS_DIR/PlugIns"
 export QT_QPA_PLATFORM_PLUGIN_PATH="$CONTENTS_DIR/PlugIns/platforms"
 export QGIS_PLUGINPATH="$CONTENTS_DIR/PlugIns/qgis"
-export QT_QPA_PLATFORM="offscreen"
+export QT_QPA_PLATFORM="${SAKUGIS_QPA_PLATFORM:-offscreen}"
 export QGIS_CUSTOM_CONFIG_PATH="/private/tmp/sakugis-qgis-profile"
 export SAKUGIS_STARTUP_CITY="wuhan"
 mkdir -p "$QGIS_CUSTOM_CONFIG_PATH"
@@ -324,6 +324,39 @@ if os.environ.get("SAKUGIS_SMOKE_GOOGLE") == "1":
     print(f"Google satellite layer valid: {bool(google_layers)}")
     if not google_layers:
         raise SystemExit(1)
+    from qgis.PyQt.QtCore import Qt
+    from sakugis.layer_panel import LayerTreeStyle
+
+    google_node = window.project.layerTreeRoot().findLayer(google_layers[0].id())
+    google_index = window.layer_panel.model.node2index(google_node)
+    if not google_index.isValid():
+        raise SystemExit("Google layer has no layer-tree model index")
+    window.layer_panel.view.setCurrentIndex(google_index)
+    app.processEvents()
+    if not isinstance(window.layer_panel.visibility_style, LayerTreeStyle):
+        raise SystemExit("Layer visibility checkbox style is not installed")
+    if (
+        window.layer_panel.view.itemDelegate().metaObject().className()
+        != "QgsLayerTreeViewItemDelegate"
+    ):
+        raise SystemExit("The native QGIS layer-tree delegate was replaced")
+    window.layer_panel.model.setData(
+        google_index,
+        Qt.Unchecked,
+        Qt.CheckStateRole,
+    )
+    app.processEvents()
+    if google_node.isVisible():
+        raise SystemExit("Layer visibility checkbox did not hide the layer")
+    window.layer_panel.model.setData(
+        google_index,
+        Qt.Checked,
+        Qt.CheckStateRole,
+    )
+    app.processEvents()
+    if not google_node.isVisible():
+        raise SystemExit("Layer visibility checkbox did not show the layer")
+    print("Layer visibility checkbox paint and state handling: OK")
 
 if os.environ.get("SAKUGIS_SMOKE_GIS_TOOLS") == "1":
     from pathlib import Path
@@ -423,19 +456,20 @@ if os.environ.get("SAKUGIS_SMOKE_GIS_TOOLS") == "1":
         raise SystemExit("Continuous numeric renderer did not create five classes")
 
     apply_qgis_translation(app)
-    style_dialog = create_layer_style_dialog(point_layer, window.canvas, window)
-    if not isinstance(style_dialog, QgsRendererPropertiesDialog):
-        raise SystemExit("Layer styling did not use QGIS' native dialog")
-    if style_dialog.minimumWidth() < 820 or style_dialog.minimumHeight() < 580:
-        raise SystemExit("Native QGIS styling dialog is too compressed")
-    style_screenshot = os.environ.get("SAKUGIS_SMOKE_GIS_STYLE_SCREENSHOT")
-    if style_screenshot:
-        style_dialog.show()
+    if os.environ.get("SAKUGIS_SMOKE_SKIP_NATIVE_DIALOG") != "1":
+        style_dialog = create_layer_style_dialog(point_layer, window.canvas, window)
+        if not isinstance(style_dialog, QgsRendererPropertiesDialog):
+            raise SystemExit("Layer styling did not use QGIS' native dialog")
+        if style_dialog.minimumWidth() < 820 or style_dialog.minimumHeight() < 580:
+            raise SystemExit("Native QGIS styling dialog is too compressed")
+        style_screenshot = os.environ.get("SAKUGIS_SMOKE_GIS_STYLE_SCREENSHOT")
+        if style_screenshot:
+            style_dialog.show()
+            app.processEvents()
+            if not style_dialog.grab().save(style_screenshot):
+                raise SystemExit("Layer style screenshot could not be saved")
+        style_dialog.reject()
         app.processEvents()
-        if not style_dialog.grab().save(style_screenshot):
-            raise SystemExit("Layer style screenshot could not be saved")
-    style_dialog.reject()
-    app.processEvents()
 
     window.layer_panel.view.setCurrentLayer(point_layer)
     app.processEvents()

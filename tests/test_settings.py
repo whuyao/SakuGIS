@@ -5,6 +5,7 @@ from unittest.mock import patch
 from sakugis.app_settings import load_runtime_settings, save_runtime_settings
 from sakugis.candidate_retrieval import HybridCandidateRetriever
 from sakugis.credentials import (
+    DEFAULT_MODEL,
     configured_brave_timeout,
     configured_candidate_limit,
     configured_prompt_char_limit,
@@ -38,6 +39,9 @@ class FakeOSM:
 
 
 class SettingsTests(unittest.TestCase):
+    def test_latest_qwen_is_the_default_model(self):
+        self.assertEqual(DEFAULT_MODEL, "qwen3.8-max")
+
     def test_qwen_remains_the_default_provider(self):
         with patch.dict(os.environ, {}, clear=True):
             self.assertEqual(configured_provider(), QWEN)
