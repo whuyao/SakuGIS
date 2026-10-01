@@ -2,8 +2,8 @@
 
 [中文说明](README.zh-CN.md) · English
 
-> **Latest release: [Download SakuGIS 0.5.1 for Apple Silicon (.dmg)](https://github.com/whuyao/SakuGIS/releases/download/v0.5.1/SakuGIS-0.5.1-Apple-Silicon.dmg)**<br>
-> macOS 13 or later · Apple Silicon only · [Release notes](https://github.com/whuyao/SakuGIS/releases/tag/v0.5.1) · [SHA-256](https://github.com/whuyao/SakuGIS/releases/download/v0.5.1/SakuGIS-0.5.1-Apple-Silicon.sha256.txt)
+> **Latest release: [Download SakuGIS 0.5.2 for Apple Silicon (.dmg)](https://github.com/whuyao/SakuGIS/releases/download/v0.5.2/SakuGIS-0.5.2-Apple-Silicon.dmg)**<br>
+> macOS 13 or later · Apple Silicon only · [Release notes](https://github.com/whuyao/SakuGIS/releases/tag/v0.5.2) · [SHA-256](https://github.com/whuyao/SakuGIS/releases/download/v0.5.2/SakuGIS-0.5.2-Apple-Silicon.sha256.txt)
 
 SakuGIS is an experimental macOS desktop GIS for visual geolocation and
 inspectable spatial verification. It combines QGIS, OpenStreetMap, optional
@@ -14,13 +14,19 @@ Developed by the [UrbanComp team](https://urbancomp.net).
 
 ## Download
 
-The latest installable build is **SakuGIS 0.5.1 for Apple Silicon**.
+The latest installable build is **SakuGIS 0.5.2 for Apple Silicon**.
 
-[Download the latest DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.5.1/SakuGIS-0.5.1-Apple-Silicon.dmg)
+[Download the latest DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.5.2/SakuGIS-0.5.2-Apple-Silicon.dmg)
 ·
-[SHA-256](https://github.com/whuyao/SakuGIS/releases/download/v0.5.1/SakuGIS-0.5.1-Apple-Silicon.sha256.txt)
+[SHA-256](https://github.com/whuyao/SakuGIS/releases/download/v0.5.2/SakuGIS-0.5.2-Apple-Silicon.sha256.txt)
 ·
-[Release notes and all assets](https://github.com/whuyao/SakuGIS/releases/tag/v0.5.1)
+[Release notes and all assets](https://github.com/whuyao/SakuGIS/releases/tag/v0.5.2)
+
+Version 0.5.2 improves compact-window behavior. The Agent workspace now scrolls
+vertically while Edit Input / View Result and export actions remain pinned and
+visible. Photo controls and status text reflow at narrow widths, and Settings
+keeps its API fields scrollable with Save and Cancel pinned. The main window was
+verified at 900×600 and Settings at 620×500.
 
 Version 0.5.1 upgrades the default Qwen model to the latest multimodal
 `qwen3.8-max` and adds `qwen3.8-flash` to Settings, while retaining older and
@@ -30,7 +36,7 @@ attribute table, PDF/PNG cartography, and replayable `.sgd` workflow introduced
 in 0.5.0 remain available. Credentials and PostGIS connection strings are never
 included in the App, DMG, project files, or repository.
 
-The current 0.5.1 package also fixes layer-visibility checkboxes that could
+Version 0.5.1 also fixes layer-visibility checkboxes that could
 become transparent or render incorrectly on macOS Retina displays in light or
 dark mode, while preserving QGIS' native layer-tree interactions for expanding,
 reordering, renaming, and toggling visibility. Release regression covers 69 core

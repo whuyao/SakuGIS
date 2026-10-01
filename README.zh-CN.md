@@ -2,8 +2,8 @@
 
 中文说明 · [English](README.md)
 
-> **最新版本：[下载 SakuGIS 0.5.1 Apple Silicon 安装包（.dmg）](https://github.com/whuyao/SakuGIS/releases/download/v0.5.1/SakuGIS-0.5.1-Apple-Silicon.dmg)**<br>
-> macOS 13 或更高版本 · 仅支持 Apple Silicon · [版本说明](https://github.com/whuyao/SakuGIS/releases/tag/v0.5.1) · [SHA-256 校验](https://github.com/whuyao/SakuGIS/releases/download/v0.5.1/SakuGIS-0.5.1-Apple-Silicon.sha256.txt)
+> **最新版本：[下载 SakuGIS 0.5.2 Apple Silicon 安装包（.dmg）](https://github.com/whuyao/SakuGIS/releases/download/v0.5.2/SakuGIS-0.5.2-Apple-Silicon.dmg)**<br>
+> macOS 13 或更高版本 · 仅支持 Apple Silicon · [版本说明](https://github.com/whuyao/SakuGIS/releases/tag/v0.5.2) · [SHA-256 校验](https://github.com/whuyao/SakuGIS/releases/download/v0.5.2/SakuGIS-0.5.2-Apple-Silicon.sha256.txt)
 
 SakuGIS 是一款面向 macOS 的轻量桌面 GIS 应用。当前版本以 QGIS LTR
 作为 GIS 内核，提供在线底图、本地 GIS 数据加载、图层管理、地图漫游和
@@ -11,13 +11,18 @@ SakuGIS 是一款面向 macOS 的轻量桌面 GIS 应用。当前版本以 QGIS 
 
 ## 下载
 
-当前最新可安装版本为 **SakuGIS 0.5.1 Apple Silicon 版**。
+当前最新可安装版本为 **SakuGIS 0.5.2 Apple Silicon 版**。
 
-[下载最新版 DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.5.1/SakuGIS-0.5.1-Apple-Silicon.dmg)
+[下载最新版 DMG](https://github.com/whuyao/SakuGIS/releases/download/v0.5.2/SakuGIS-0.5.2-Apple-Silicon.dmg)
 ·
-[SHA-256 校验文件](https://github.com/whuyao/SakuGIS/releases/download/v0.5.1/SakuGIS-0.5.1-Apple-Silicon.sha256.txt)
+[SHA-256 校验文件](https://github.com/whuyao/SakuGIS/releases/download/v0.5.2/SakuGIS-0.5.2-Apple-Silicon.sha256.txt)
 ·
-[版本说明、注意事项与全部附件](https://github.com/whuyao/SakuGIS/releases/tag/v0.5.1)
+[版本说明、注意事项与全部附件](https://github.com/whuyao/SakuGIS/releases/tag/v0.5.2)
+
+0.5.2 改进了小窗口和紧凑布局：Agent 工作区可纵向滚动，“修改输入 / 查看结果”
+与导出操作固定在面板底部，照片操作和状态文字可以自适应换行；设置窗口也会在
+较小尺寸下保持 API 输入区可滚动、保存与取消按钮始终可见。主窗口最低支持
+900×600，设置窗口已在 620×500 下完成回归验证。
 
 0.5.1 将默认千问模型升级到最新的多模态 `qwen3.8-max`，并在设置中加入
 `qwen3.8-flash` 选项；旧模型和自定义兼容模型仍可选择。文本结构化输出与图片
@@ -25,7 +30,7 @@ SakuGIS 是一款面向 macOS 的轻量桌面 GIS 应用。当前版本以 QGIS 
 PDF/PNG 专业出图和 `.sgd` 工程复盘能力继续保留。Qwen/Kimi/Brave Key 与 PostGIS
 连接信息不会进入 App、DMG、工程包或 Git 仓库。
 
-当前 0.5.1 安装包同时修复了 macOS Retina 与浅色/深色主题下图层显隐勾选框
+0.5.1 同时修复了 macOS Retina 与浅色/深色主题下图层显隐勾选框
 可能透明或显示异常的问题，并保留 QGIS 原生图层树的展开、拖动、重命名和点击
 显隐行为。发布回归覆盖 69 项核心测试，以及设置即时生效、OSM/Google 图层、
 Agent 结果联动、`.sgd` 保存复盘、点线面渲染、属性表和 A4 PDF/PNG 出图。

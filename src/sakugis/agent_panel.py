@@ -5,11 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from qgis.PyQt.QtCore import QObject, QThread, Qt, pyqtSignal, pyqtSlot
+from qgis.PyQt.QtCore import QObject, QThread, QTimer, Qt, pyqtSignal, pyqtSlot
 from qgis.PyQt.QtGui import QPixmap
 from qgis.PyQt.QtWidgets import (
     QAbstractItemView,
     QFileDialog,
+    QFrame,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -18,6 +19,7 @@ from qgis.PyQt.QtWidgets import (
     QMessageBox,
     QProgressBar,
     QPushButton,
+    QScrollArea,
     QSplitter,
     QTabWidget,
     QTextBrowser,
@@ -109,6 +111,7 @@ class AgentPanel(QWidget):
         self.photo_group = QGroupBox(tr("agent.photo"), self)
         self.photo_count_label = QLabel(self)
         self.photo_count_label.setObjectName("MutedLabel")
+        self.photo_count_label.setWordWrap(True)
         self.choose_photo_button = QPushButton(tr("agent.add_photos"), self)
         self.choose_photo_button.clicked.connect(self._choose_photo)
         self.remove_photo_button = QPushButton(
@@ -117,11 +120,13 @@ class AgentPanel(QWidget):
         self.remove_photo_button.clicked.connect(self._remove_selected_photos)
         self.clear_photo_button = QPushButton(tr("agent.clear_all"), self)
         self.clear_photo_button.clicked.connect(self._clear_photos)
-        photo_row = QHBoxLayout()
-        photo_row.addWidget(self.photo_count_label, 1)
-        photo_row.addWidget(self.choose_photo_button)
-        photo_row.addWidget(self.remove_photo_button)
-        photo_row.addWidget(self.clear_photo_button)
+        photo_header_row = QHBoxLayout()
+        photo_header_row.addWidget(self.photo_count_label, 1)
+        photo_header_row.addWidget(self.choose_photo_button)
+        photo_action_row = QHBoxLayout()
+        photo_action_row.addStretch(1)
+        photo_action_row.addWidget(self.remove_photo_button)
+        photo_action_row.addWidget(self.clear_photo_button)
         self.photo_list = QListWidget(self)
         self.photo_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.photo_list.setMaximumHeight(105)
@@ -134,7 +139,8 @@ class AgentPanel(QWidget):
         self.preview.setMinimumHeight(110)
         self.preview.setMaximumHeight(180)
         photo_layout = QVBoxLayout(self.photo_group)
-        photo_layout.addLayout(photo_row)
+        photo_layout.addLayout(photo_header_row)
+        photo_layout.addLayout(photo_action_row)
         photo_layout.addWidget(self.photo_list)
         photo_layout.addWidget(self.preview)
 
@@ -153,6 +159,12 @@ class AgentPanel(QWidget):
         self.api_status = QLabel(self)
         self.brave_status = QLabel(self)
         self.gis_status = QLabel(self)
+        for status_label in (
+            self.api_status,
+            self.brave_status,
+            self.gis_status,
+        ):
+            status_label.setWordWrap(True)
         self.settings_hint = QLabel(tr("agent.settings_hint"), self)
         self.settings_hint.setObjectName("MutedLabel")
         self.settings_hint.setWordWrap(True)
@@ -248,26 +260,46 @@ class AgentPanel(QWidget):
         self.view_result_button.setObjectName("PrimaryButton")
         self.view_result_button.setVisible(False)
         self.view_result_button.clicked.connect(self._return_to_result)
-        result_actions = QHBoxLayout()
+        self.action_footer = QFrame(self)
+        self.action_footer.setObjectName("AgentActionFooter")
+        self.action_footer.setFrameShape(QFrame.NoFrame)
+        result_actions = QHBoxLayout(self.action_footer)
+        result_actions.setContentsMargins(12, 6, 12, 12)
+        result_actions.setSpacing(8)
         result_actions.addWidget(self.new_search_button)
         result_actions.addWidget(self.view_result_button)
         result_actions.addStretch(1)
         result_actions.addWidget(self.export_button)
 
+        self.scroll_content = QWidget(self)
+        self.scroll_content.setObjectName("AgentScrollContent")
+        content_layout = QVBoxLayout(self.scroll_content)
+        content_layout.setContentsMargins(12, 12, 12, 8)
+        content_layout.setSpacing(8)
+        content_layout.addWidget(self.eyebrow_label)
+        content_layout.addWidget(self.workspace_title)
+        content_layout.addWidget(self.workspace_subtitle)
+        content_layout.addLayout(step_row)
+        content_layout.addWidget(self.photo_group)
+        content_layout.addWidget(self.query_group)
+        content_layout.addWidget(self.service_group)
+        content_layout.addLayout(run_row)
+        content_layout.addWidget(self.progress_label)
+        content_layout.addWidget(self.result_splitter, 1)
+
+        self.workspace_scroll = QScrollArea(self)
+        self.workspace_scroll.setObjectName("AgentWorkspaceScroll")
+        self.workspace_scroll.setFrameShape(QFrame.NoFrame)
+        self.workspace_scroll.setWidgetResizable(True)
+        self.workspace_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.workspace_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.workspace_scroll.setWidget(self.scroll_content)
+
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(8)
-        layout.addWidget(self.eyebrow_label)
-        layout.addWidget(self.workspace_title)
-        layout.addWidget(self.workspace_subtitle)
-        layout.addLayout(step_row)
-        layout.addWidget(self.photo_group)
-        layout.addWidget(self.query_group)
-        layout.addWidget(self.service_group)
-        layout.addLayout(run_row)
-        layout.addWidget(self.progress_label)
-        layout.addWidget(self.result_splitter, 1)
-        layout.addLayout(result_actions)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self.workspace_scroll, 1)
+        layout.addWidget(self.action_footer)
 
         self._refresh_gis_status()
         self._refresh_photo_list()
@@ -347,6 +379,15 @@ class AgentPanel(QWidget):
 
     def focus_query(self) -> None:
         self.query_edit.setFocus(Qt.OtherFocusReason)
+        self._ensure_widget_visible(self.query_group)
+
+    def _ensure_widget_visible(self, widget: QWidget) -> None:
+        """Reveal controls after a compact-window mode transition."""
+
+        QTimer.singleShot(
+            0,
+            lambda: self.workspace_scroll.ensureWidgetVisible(widget, 12, 12),
+        )
 
     def query_text(self) -> str:
         return self.query_edit.toPlainText()
@@ -410,6 +451,7 @@ class AgentPanel(QWidget):
         self.result_splitter.show()
         self.view_result_button.hide()
         self.new_search_button.show()
+        self._ensure_widget_visible(self.result_splitter)
 
     def _set_step_state(self, percent: int) -> None:
         if percent >= 100:
@@ -639,6 +681,7 @@ class AgentPanel(QWidget):
         self.view_result_button.hide()
         self.result_splitter.show()
         self._show_result(result)
+        self._ensure_widget_visible(self.result_splitter)
         self.analysisCompleted.emit(result)
 
     @pyqtSlot(str)

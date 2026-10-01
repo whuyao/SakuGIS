@@ -69,7 +69,7 @@ fi
 "$PYTHON_EXECUTABLE" - <<'PY'
 import os
 
-from qgis.PyQt.QtCore import QEventLoop, QTimer
+from qgis.PyQt.QtCore import QEventLoop, QPoint, QTimer
 from qgis.core import (
     Qgis,
     QgsApplication,
@@ -215,6 +215,24 @@ smoke_language = os.environ.get("SAKUGIS_SMOKE_LANGUAGE")
 if smoke_language:
     window._set_language(smoke_language)
 
+if os.environ.get("SAKUGIS_SMOKE_COMPACT_UI") == "1":
+    window.resize(900, 600)
+    app.processEvents()
+    panel = window.agent_panel
+    footer_top = panel.action_footer.mapTo(panel, QPoint(0, 0)).y()
+    footer_bottom = footer_top + panel.action_footer.height()
+    if footer_top < panel.workspace_scroll.geometry().bottom() - 1:
+        raise SystemExit("Compact Agent action footer overlaps scrollable content")
+    if footer_bottom > panel.height() + 1:
+        raise SystemExit("Compact Agent action footer is clipped")
+    if not panel.export_button.isVisibleTo(panel):
+        raise SystemExit("Compact Agent actions are not visible")
+    if panel.workspace_scroll.verticalScrollBar().maximum() <= 0:
+        raise SystemExit("Compact Agent workspace does not offer vertical scrolling")
+    if panel.workspace_scroll.horizontalScrollBar().maximum() > 0:
+        raise SystemExit("Compact Agent workspace still overflows horizontally")
+    print("Compact 900x600 Agent workspace scrolling and pinned actions: OK")
+
 if os.environ.get("SAKUGIS_SMOKE_SETTINGS") == "1":
     from sakugis.candidate_retrieval import HybridCandidateRetriever
     from sakugis.kimi_client import KimiClient
@@ -231,6 +249,8 @@ if os.environ.get("SAKUGIS_SMOKE_SETTINGS") == "1":
     dialog = SettingsDialog(window)
     dialog.settingsApplied.connect(applied.append)
     dialog.settingsApplied.connect(window._apply_settings)
+    if os.environ.get("SAKUGIS_SMOKE_COMPACT_UI") == "1":
+        dialog.resize(620, 500)
     dialog.show()
     app.processEvents()
     readable_controls = (
@@ -251,6 +271,17 @@ if os.environ.get("SAKUGIS_SMOKE_SETTINGS") == "1":
         )
     ):
         raise SystemExit("Settings status fields are vertically compressed")
+    if os.environ.get("SAKUGIS_SMOKE_COMPACT_UI") == "1":
+        button_bottom = (
+            dialog.button_box.mapTo(dialog, QPoint(0, 0)).y()
+            + dialog.button_box.height()
+        )
+        if button_bottom > dialog.height() + 1:
+            raise SystemExit("Compact Settings save/cancel actions are clipped")
+        current_scroll = dialog.tabs.currentWidget()
+        if current_scroll.verticalScrollBar().maximum() <= 0:
+            raise SystemExit("Compact Settings tab does not offer vertical scrolling")
+        print("Compact 620x500 Settings scrolling and pinned actions: OK")
     settings_screenshot = os.environ.get(
         "SAKUGIS_SMOKE_SETTINGS_SCREENSHOT"
     )
@@ -761,6 +792,24 @@ if os.environ.get("SAKUGIS_SMOKE_AGENT_RESULT") == "1":
         raise SystemExit("Google Maps attribution is not visible")
     print(f"Attribution: {window.attribution_status.text()}")
     print("Expandable candidate layers: OK")
+    if os.environ.get("SAKUGIS_SMOKE_COMPACT_UI") == "1":
+        window.place_details_dock.hide()
+        window.resize(900, 600)
+        window.agent_panel._return_to_result()
+        app.processEvents()
+        if not window.agent_panel.new_search_button.isVisibleTo(
+            window.agent_panel
+        ):
+            raise SystemExit("Compact Edit Input action is not visible")
+        window.agent_panel._prepare_new_search()
+        app.processEvents()
+        if not window.agent_panel.view_result_button.isVisibleTo(
+            window.agent_panel
+        ):
+            raise SystemExit("Compact View Result action is not visible")
+        window.agent_panel._return_to_result()
+        app.processEvents()
+        print("Compact Edit Input / View Result actions remain visible: OK")
     report_path = os.environ.get("SAKUGIS_SMOKE_REPORT")
     if report_path:
         from sakugis.reporting import write_markdown_report
