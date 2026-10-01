@@ -154,7 +154,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("SakuGIS")
         self.resize(1440, 900)
-        self.setMinimumSize(1040, 680)
+        self.setMinimumSize(900, 600)
         self.setCorner(
             Qt.BottomLeftCorner, Qt.LeftDockWidgetArea
         )
@@ -210,7 +210,7 @@ class MainWindow(QMainWindow):
             Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea
         )
         self.layer_dock.setWidget(self.layer_panel)
-        self.layer_dock.setMinimumWidth(360)
+        self.layer_dock.setMinimumWidth(280)
         self.layer_dock.setMaximumWidth(410)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.layer_dock)
 
@@ -231,7 +231,7 @@ class MainWindow(QMainWindow):
             Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea
         )
         self.agent_dock.setWidget(self.agent_panel)
-        self.agent_dock.setMinimumWidth(430)
+        self.agent_dock.setMinimumWidth(360)
         self.agent_dock.setMaximumWidth(520)
         self.addDockWidget(Qt.RightDockWidgetArea, self.agent_dock)
 

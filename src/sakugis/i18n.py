@@ -533,8 +533,8 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     },
     "about.title": {ZH_CN: "关于 SakuGIS", EN: "About SakuGIS"},
     "about.body": {
-        ZH_CN: "<h3>SakuGIS 0.5.1</h3><p>一款基于 QGIS 的轻量 macOS 桌面 GIS。</p><p>开发团队：<a href=\"https://urbancomp.net\">UrbanComp</a>。</p><p>许可证：GNU GPL v2 或更高版本。</p>",
-        EN: "<h3>SakuGIS 0.5.1</h3><p>A lightweight macOS desktop GIS powered by QGIS.</p><p>Developed by the <a href=\"https://urbancomp.net\">UrbanComp team</a>.</p><p>License: GNU GPL v2 or later.</p>",
+        ZH_CN: "<h3>SakuGIS 0.5.2</h3><p>一款基于 QGIS 的轻量 macOS 桌面 GIS。</p><p>开发团队：<a href=\"https://urbancomp.net\">UrbanComp</a>。</p><p>许可证：GNU GPL v2 或更高版本。</p>",
+        EN: "<h3>SakuGIS 0.5.2</h3><p>A lightweight macOS desktop GIS powered by QGIS.</p><p>Developed by the <a href=\"https://urbancomp.net\">UrbanComp team</a>.</p><p>License: GNU GPL v2 or later.</p>",
     },
     "update.check_button": {ZH_CN: "检查更新…", EN: "Check for Updates…"},
     "update.close_button": {ZH_CN: "关闭", EN: "Close"},

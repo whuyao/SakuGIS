@@ -399,6 +399,10 @@ QFrame#Divider {
     min-height: 1px;
     max-height: 1px;
 }
+QFrame#AgentActionFooter {
+    background: #0A1624;
+    border-top: 1px solid #284158;
+}
 QToolTip {
     background: #122236;
     color: #E8F1F8;
